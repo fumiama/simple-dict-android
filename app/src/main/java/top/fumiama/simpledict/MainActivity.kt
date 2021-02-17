@@ -19,7 +19,7 @@ import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.line_word.view.*
 
 class MainActivity : AppCompatActivity() {
-    private val dict = SimpleDict(Client("pan.fumiama.top", 43792), "fumiama")
+    private val dict = SimpleDict(Client("127.0.0.1", 8000), "fumiama")
     private var hasLiked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {

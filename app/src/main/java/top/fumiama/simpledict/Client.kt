@@ -5,7 +5,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
-import java.nio.charset.Charset
 
 class Client(val ip: String, val port: Int) {
     //普通数据交互接口
@@ -58,24 +57,27 @@ class Client(val ip: String, val port: Int) {
         }
     }
 
-    fun receiveMessage(): String? {
-        var message: String? = ""
-        try {
+    fun receiveRawMessage()= try {
             if (isConnect) {
                 Log.d("MyC", "开始接收服务端信息")
                 val inMessage = ByteArray(1024)     //设置接受缓冲，避免接受数据过长占用过多内存
                 val a = din?.read(inMessage) //a存储返回消息的长度
-                if (a == null || a <= -1) return null
-                Log.d("MyC", "reply length:$a")
-                message = inMessage.copyOf(a).decodeToString()
-                Log.d("MyC", message)
-            } else Log.d("MyC", "no connect to receive message")
+                if (a == null || a <= -1) null
+                else {
+                    Log.d("MyC", "reply length:$a")
+                    inMessage.copyOf(a)
+                }
+            } else {
+                Log.d("MyC", "no connect to receive message")
+                null
+            }
         } catch (e: IOException) {
             Log.d("MyC", "receive message failed")
             e.printStackTrace()
+            null
         }
-        return message
-    }
+
+    fun receiveMessage() = receiveRawMessage()?.decodeToString()
 
     /**
      * 关闭连接

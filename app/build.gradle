@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId "top.fumiama.simpledict"
-        minSdkVersion 23
+        minSdkVersion 26
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
@@ -62,6 +62,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.3'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.3'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
@@ -93,7 +94,8 @@ andResGuard {
             "R.string.ga_trackingId",
             "R.string.firebase_database_url",
             "R.string.google_api_key",
-            "R.string.google_crash_reporting_api_key"
+            "R.string.google_crash_reporting_api_key",
+            "R.font.*"
     ]
     compressFilePattern = [
             "*.png",

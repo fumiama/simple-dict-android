@@ -6,13 +6,13 @@ import java.lang.Thread.sleep
 class SimpleDict(private val client: Client, private val pwd: String) {   //must run in thread
     private var dict = HashMap<String, String?>()
     val keys get() = dict.keys
-    val values get() = dict.values
+    //val values get() = dict.values
     //val size get() = dict.size
-    private val raw: ByteArray?
+    private val raw: ByteArray
         get() {
             initDict()
             client.sendMessage("cat")
-            sleep(233)
+            sleep(2333)
             val re = client.receiveRawMessage()
             closeDict()
             return re
@@ -47,7 +47,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
 
     fun fetchDict() {
         val dictBlock = ByteArray(128)
-        raw?.inputStream()?.let {
+        raw.inputStream().let {
             var c = '1'
             while (!it.read().toChar().isDigit()) Log.d("MySD", "Skip banner.")
             while (c.isDigit()) {

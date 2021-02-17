@@ -57,27 +57,27 @@ class Client(val ip: String, val port: Int) {
         }
     }
 
-    fun receiveRawMessage()= try {
+    fun receiveRawMessage() : ByteArray {
+        var re = byteArrayOf()
+        try {
             if (isConnect) {
                 Log.d("MyC", "开始接收服务端信息")
-                val inMessage = ByteArray(1024)     //设置接受缓冲，避免接受数据过长占用过多内存
-                val a = din?.read(inMessage) //a存储返回消息的长度
-                if (a == null || a <= -1) null
-                else {
-                    Log.d("MyC", "reply length:$a")
-                    inMessage.copyOf(a)
-                }
-            } else {
-                Log.d("MyC", "no connect to receive message")
-                null
-            }
+                val inMessage = ByteArray(4096)     //设置接受缓冲，避免接受数据过长占用过多内存
+                var a: Int
+                do {
+                    a = din?.read(inMessage)?:0 //a存储返回消息的长度
+                    Log.d("MyC", "reply length:$a: ${inMessage.decodeToString()}")
+                    re += inMessage.copyOf(a)
+                } while (a == 4096)
+            } else Log.d("MyC", "no connect to receive message")
         } catch (e: IOException) {
             Log.d("MyC", "receive message failed")
             e.printStackTrace()
-            null
         }
+        return re
+    }
 
-    fun receiveMessage() = receiveRawMessage()?.decodeToString()
+    fun receiveMessage() = receiveRawMessage().decodeToString()
 
     /**
      * 关闭连接

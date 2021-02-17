@@ -100,6 +100,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         client.sendMessage(value)
         client.receiveMessage()
         closeDict()
+        dict[key] = value
         return p
     }
 }

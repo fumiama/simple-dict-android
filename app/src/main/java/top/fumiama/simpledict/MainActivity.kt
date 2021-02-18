@@ -1,6 +1,9 @@
 package top.fumiama.simpledict
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -14,7 +17,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.textfield.TextInputLayout
 import com.lapism.search.internal.SearchLayout
 import com.lapism.search.util.SearchUtils
 import kotlinx.android.synthetic.main.activity_main.*
@@ -31,12 +33,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+    private var cm: ClipboardManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         val ad = LikeViewHolder(ffr).RecyclerViewAdapter()
-        ffr.apply { 
+        cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        ffr.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = ad
             setOnScrollChangeListener { _, _, scrollY, _, _ ->
@@ -126,13 +130,15 @@ class MainActivity : AppCompatActivity() {
                 .setMessage(data)
                 .setPositiveButton(hintAdd) { _, _ ->
                     val t = EditText(this@MainActivity)
+                    t.setText(data)
                     AlertDialog.Builder(this@MainActivity)
                             .setTitle("$hintAdd$key")
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                if (t.text.isNotEmpty()) Thread {
+                                if (t.text.isNotEmpty() && t.text.toString() != data) Thread {
                                     dict[key] = t.text.toString()
                                 }.start()
+                                else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
                             }
                             .setNegativeButton(android.R.string.cancel) { _, _ -> }
                             .show()
@@ -157,7 +163,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 newSet
                             }
-                    listKeys = selectSet.toList()
+                    listKeys = selectSet.toList().let { if(it.size > 50) it.subList(0, 49) else it }
                     listKeys?.forEach {
                         Log.d("MyMain", "Select key: $it")
                     }
@@ -204,9 +210,16 @@ class MainActivity : AppCompatActivity() {
                                     setOnClickListener {
                                         showDictAlert(key, data)
                                     }
+                                    setOnLongClickListener {
+                                        cm?.setPrimaryClip(ClipData.newPlainText("SimpleDict", "$key\n$data"))
+                                        runOnUiThread {
+                                            Toast.makeText(this@MainActivity, "已复制", Toast.LENGTH_SHORT).show()
+                                        }
+                                        true
+                                    }
                                     vl.setOnClickListener {
                                         getSharedPreferences("dict", MODE_PRIVATE)?.edit()?.apply {
-                                            if(like) {
+                                            if (like) {
                                                 remove(key)
                                                 it.setBackgroundResource(R.drawable.ic_like)
                                             } else {

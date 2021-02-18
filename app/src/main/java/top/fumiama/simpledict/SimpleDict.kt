@@ -10,21 +10,44 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     //val size get() = dict.size
     private val raw: ByteArray
         get() {
-            initDict()
-            client.sendMessage("cat")
-            sleep(2333)
-            val re = client.receiveRawMessage()
-            closeDict()
+            var times = 3
+            var re: ByteArray
+            var firstRecv: ByteArray
+            do {
+                re = byteArrayOf()
+                initDict()
+                sendMessageWithDelay("cat", 2333)
+                try {
+                    firstRecv = client.receiveRawMessage()
+                    val firstStr = firstRecv.decodeToString()
+                    var length = ""
+                    for ((i, c) in firstStr.withIndex()) {
+                        if(c.isDigit()) length += c
+                        else {
+                            if(i + 1 < firstRecv.size) re = firstRecv.copyOfRange(i, firstRecv.size)
+                            break
+                        }
+                    }
+                    re += client.receiveRawMessage(length.toInt() - re.size)
+                    break
+                } catch (e: Exception){
+                    e.printStackTrace()
+                }
+                closeDict()
+            } while (times-- > 0)
             return re
         }
-
-    init {
-        Thread{ fetchDict() }.start()
-    }
+    
+    private fun sendMessageWithDelay(msg: CharSequence, delay: Long = 233) = Thread{
+        client.sendMessage(msg)
+        sleep(delay)
+    }.start()
 
     private fun initDict() {
         client.initConnect()
         client.sendMessage(pwd)
+        client.receiveRawMessage()
+        sleep(233)
     }
 
     private fun closeDict() {
@@ -45,59 +68,36 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     //fun filterKeys(predicate: (String) -> Boolean) = dict.filterKeys(predicate)
     fun filterValues(predicate: (String?) -> Boolean) = dict.filterValues(predicate)
 
-    fun fetchDict() {
+    fun fetchDict(doOnLoadSuccess: ()->Unit = {
+        Log.d("MySD", "Fetch dict success")
+    }) {
         val dictBlock = ByteArray(128)
+        dict = hashMapOf()
         raw.inputStream().let {
-            var c = '1'
-            while (!it.read().toChar().isDigit()) Log.d("MySD", "Skip banner.")
-            while (c.isDigit()) {
-                c = it.read().toChar()
-                Log.d("MySD", "Skip digit $c.")
-            }
-            dictBlock[0] = c.toByte()
-            if(it.read(dictBlock, 1, 127) == 127) {
-                analyzeDictBlk(dictBlock)
-                while (it.read(dictBlock, 0, 128) == 128) analyzeDictBlk(dictBlock)
-            }
+            while (it.read(dictBlock, 0, 128) == 128) analyzeDictBlk(dictBlock)
+            doOnLoadSuccess()
         }
     }
 
-    /*fun keysWithPattern(pattern: String): MutableSet<String>{
-        val re = mutableSetOf<String>()
+    operator fun minusAssign(key: String) {
         initDict()
-        client.sendMessage("lst")
-        sleep(233)
+        sendMessageWithDelay("del")
         client.receiveMessage()
-        client.sendMessage(pattern)
-        client.receiveMessage()?.substringBeforeLast('\n')?.split('\n')?.forEach {
-            re.add(it)
-        }
+        sendMessageWithDelay(key)
+        client.receiveMessage()
         closeDict()
-        return re
     }
-
-    fun getDirectly(key: String): String? {
-        initDict()
-        client.sendMessage("get")
-        sleep(233)
-        client.receiveMessage()
-        client.sendMessage(key)
-        val re = client.receiveMessage()
-        closeDict()
-        return re
-    }*/
 
     operator fun get(key: String) = dict[key]
 
     operator fun set(key: String, value: String): String? {
         val p = dict[key]
         initDict()
-        client.sendMessage("set")
-        sleep(233)
+        sendMessageWithDelay("set")
         client.receiveMessage()
-        client.sendMessage(key)
+        sendMessageWithDelay(key)
         client.receiveMessage()
-        client.sendMessage(value)
+        sendMessageWithDelay(value)
         client.receiveMessage()
         closeDict()
         dict[key] = value

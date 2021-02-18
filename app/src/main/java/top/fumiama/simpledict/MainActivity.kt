@@ -9,10 +9,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.textfield.TextInputLayout
 import com.lapism.search.internal.SearchLayout
 import com.lapism.search.util.SearchUtils
 import kotlinx.android.synthetic.main.activity_main.*
@@ -21,6 +23,14 @@ import kotlinx.android.synthetic.main.line_word.view.*
 class MainActivity : AppCompatActivity() {
     private val dict = SimpleDict(Client("127.0.0.1", 8000), "fumiama")
     private var hasLiked = false
+    private val fetchThread get() = Thread{
+        dict.fetchDict {
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
+                ffsw.isRefreshing = false
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,8 +45,10 @@ class MainActivity : AppCompatActivity() {
             ffsw.apply {
                 setOnRefreshListener {
                     ad.refresh()
-                    isRefreshing = false
+                    fetchThread.start()
                 }
+                isRefreshing = true
+                fetchThread.start()
             }
         }
 
@@ -107,15 +119,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDictAlert(key: String, data: String?) {
-        val like = getSharedPreferences("dict", MODE_PRIVATE)?.contains(key)?:false
+        val hintAdd = if(data != null && data != "null") "重设" else "添加"
         hasLiked = false
         AlertDialog.Builder(this@MainActivity)
                 .setTitle(key)
                 .setMessage(data)
-                .setPositiveButton(if(data != "null") "重设" else "添加") { _, _ ->
+                .setPositiveButton(hintAdd) { _, _ ->
                     val t = EditText(this@MainActivity)
                     AlertDialog.Builder(this@MainActivity)
-                            .setTitle("重设$key")
+                            .setTitle("$hintAdd$key")
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
                                 if (t.text.isNotEmpty()) Thread {
@@ -125,12 +137,8 @@ class MainActivity : AppCompatActivity() {
                             .setNegativeButton(android.R.string.cancel) { _, _ -> }
                             .show()
                 }
-                .setNeutralButton(if(like) "取消收藏" else "收藏") { _, _ ->
-                    getSharedPreferences("dict", MODE_PRIVATE)?.edit()?.apply {
-                        if(like) remove(key) else putString(key, data)
-                        hasLiked = true
-                        apply()
-                    }
+                .setNeutralButton("删除") { _, _ ->
+                    Thread{dict -= key}.start()
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> }
                 .show()
@@ -182,19 +190,38 @@ class MainActivity : AppCompatActivity() {
             @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
             override fun onBindViewHolder(holder: ListViewHolder, position: Int) {
                 Log.d("MyMain", "Bind like at $position")
-                listKeys?.apply {
-                    if (position < size) {
-                        val key = get(position)
-                        val data = getValue(key)
-                        holder.itemView.apply {
-                            ta.text = key
-                            tb.text = data
-                            setOnClickListener {
-                                showDictAlert(key, data)
+                Thread{
+                    listKeys?.apply {
+                        if (position < size) {
+                            val key = get(position)
+                            val data = getValue(key)
+                            val like = getSharedPreferences("dict", MODE_PRIVATE)?.contains(key) == true
+                            runOnUiThread {
+                                holder.itemView.apply {
+                                    ta.text = key
+                                    tb.text = data
+                                    if(like) vl.setBackgroundResource(R.drawable.ic_like_filled)
+                                    setOnClickListener {
+                                        showDictAlert(key, data)
+                                    }
+                                    vl.setOnClickListener {
+                                        getSharedPreferences("dict", MODE_PRIVATE)?.edit()?.apply {
+                                            if(like) {
+                                                remove(key)
+                                                it.setBackgroundResource(R.drawable.ic_like)
+                                            } else {
+                                                putString(key, data)
+                                                it.setBackgroundResource(R.drawable.ic_like_filled)
+                                            }
+                                            hasLiked = true
+                                            apply()
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                }
+                }.start()
             }
 
             override fun getItemCount() = listKeys?.size?:0

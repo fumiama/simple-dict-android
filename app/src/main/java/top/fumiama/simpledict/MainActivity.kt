@@ -25,20 +25,13 @@ import kotlinx.android.synthetic.main.line_word.view.*
 class MainActivity : AppCompatActivity() {
     private val dict = SimpleDict(Client("127.0.0.1", 8000), "fumiama")
     private var hasLiked = false
-    private val fetchThread get() = Thread{
-        dict.fetchDict {
-            runOnUiThread {
-                Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
-                ffsw.isRefreshing = false
-            }
-        }
-    }
     private var cm: ClipboardManager? = null
+    private var ad: ListViewHolder.RecyclerViewAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val ad = LikeViewHolder(ffr).RecyclerViewAdapter()
+        ad = LikeViewHolder(ffr).RecyclerViewAdapter()
         cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         ffr.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
@@ -48,23 +41,22 @@ class MainActivity : AppCompatActivity() {
             }
             ffsw.apply {
                 setOnRefreshListener {
-                    ad.refresh()
-                    fetchThread.start()
+                    fetchThread()
                 }
                 isRefreshing = true
-                fetchThread.start()
+                fetchThread()
             }
         }
 
         ffms.apply {
             setAdapterLayoutManager(LinearLayoutManager(this@MainActivity))
-            val adapter = SearchViewHolder(findViewById(R.id.search_recycler_view)).RecyclerViewAdapter()
+            val adapter = SearchViewHolder(findViewById(R.id.search_recycler_view), findViewById(R.id.search_search_edit_text)).RecyclerViewAdapter()
             setAdapter(adapter)
             navigationIconSupport = SearchLayout.NavigationIconSupport.SEARCH
             setOnNavigationClickListener(object : SearchLayout.OnNavigationClickListener {
                 override fun onNavigationClick(hasFocus: Boolean) {
                     if (hasFocus()) {
-                        if(hasLiked) ad.refresh()
+                        if(hasLiked) ad?.refresh()
                         clearFocus()
                     }
                     else requestFocus()
@@ -73,7 +65,7 @@ class MainActivity : AppCompatActivity() {
             setTextHint(android.R.string.search_go)
             setOnQueryTextListener(object : SearchLayout.OnQueryTextListener {
                 override fun onQueryTextChange(newText: CharSequence): Boolean {
-                    if (newText.isNotEmpty()) adapter.filter(newText)
+                    if (newText.isNotEmpty()) adapter.refresh()
                     return true
                 }
 
@@ -81,7 +73,7 @@ class MainActivity : AppCompatActivity() {
                     if(query.isNotEmpty()) {
                         val key = query.toString()
                         val data = dict[key]
-                        showDictAlert(key, data)
+                        showDictAlert(key, data) { adapter.refresh() }
                     }
                     return true
                 }
@@ -104,7 +96,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if(ffms.hasFocus()) {
-            if(hasLiked) (ffr.adapter as ListViewHolder.RecyclerViewAdapter).refresh()
+            if(hasLiked) ad?.refresh()
             ffms.clearFocus()
         }
         else super.onBackPressed()
@@ -122,7 +114,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showDictAlert(key: String, data: String?) {
+    private fun fetchThread() {
+        Thread{
+            dict.fetchDict {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
+                    ffsw.isRefreshing = false
+                    ad?.refresh()
+                }
+            }
+        }.start()
+    }
+
+    private fun showDictAlert(key: String, data: String?, notify: ()->Unit) {
         val hintAdd = if(data != null && data != "null") "重设" else "添加"
         hasLiked = false
         AlertDialog.Builder(this@MainActivity)
@@ -135,8 +139,10 @@ class MainActivity : AppCompatActivity() {
                             .setTitle("$hintAdd$key")
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                if (t.text.isNotEmpty() && t.text.toString() != data) Thread {
-                                    dict[key] = t.text.toString()
+                                val newText = t.text.toString()
+                                if (t.text.isNotEmpty() && newText != data) Thread {
+                                    dict[key] = newText
+                                    notify()
                                 }.start()
                                 else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
                             }
@@ -144,46 +150,48 @@ class MainActivity : AppCompatActivity() {
                             .show()
                 }
                 .setNeutralButton("删除") { _, _ ->
-                    Thread{dict -= key}.start()
+                    Thread{
+                        dict -= key
+                        notify()
+                    }.start()
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> }
                 .show()
     }
 
-    inner class SearchViewHolder(itemView: View) : ListViewHolder(itemView) {
+    inner class SearchViewHolder(itemView: View, private val editText: EditText) : ListViewHolder(itemView) {
         inner class RecyclerViewAdapter : ListViewHolder.RecyclerViewAdapter() {
+            override fun getKeys() = filter(editText.text)
             override fun getValue(key: String) = dict[key]
-            fun filter(text: CharSequence) {
-                Thread{
-                    val selectSet = dict.keys.filter { it.contains(text, true) }.toSet() +
-                            dict.filterValues { it?.contains(text, true)?:false }.let {
-                                val newSet = mutableSetOf<String>()
-                                it.keys.forEach {
-                                    newSet += it
-                                }
-                                newSet
+            private fun filter(text: CharSequence): List<String> {
+                val selectSet = dict.keys.filter { it.contains(text, true) }.toSet() +
+                        dict.filterValues { it?.contains(text, true) ?: false }.let {
+                            val newSet = mutableSetOf<String>()
+                            it.keys.forEach {
+                                newSet += it
                             }
-                    listKeys = selectSet.toList().let { if(it.size > 50) it.subList(0, 49) else it }
-                    listKeys?.forEach {
-                        Log.d("MyMain", "Select key: $it")
-                    }
-                    runOnUiThread { notifyDataSetChanged() }
-                }.start()
+                            newSet
+                        }
+                return selectSet.toList().let { if (it.size > 50) it.subList(0, 49) else it }
             }
         }
     }
 
     inner class LikeViewHolder(itemView: View) : ListViewHolder(itemView) {
         inner class RecyclerViewAdapter: ListViewHolder.RecyclerViewAdapter(){
-            override fun getKeys() = getSharedPreferences("dict", MODE_PRIVATE).all.keys.toList()
-            override fun getValue(key: String) = getSharedPreferences("dict", MODE_PRIVATE).getString(key, "null")
+            override fun getKeys() = getSharedPreferences("dict", MODE_PRIVATE).all.keys.toTypedArray().let{
+                val end = dict.latestKeys.size
+                val start = if(end > 5) end - 5 else 0
+                (dict.latestKeys.copyOfRange(start, end) + it).toList()
+            }
+            override fun getValue(key: String) = dict[key]?:getSharedPreferences("dict", MODE_PRIVATE).getString(key, "null")
         }
     }
 
     open inner class ListViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         open inner class RecyclerViewAdapter :
             RecyclerView.Adapter<ListViewHolder>() {
-            var listKeys = getKeys()
+            private var listKeys: List<String>? = null
             open fun getKeys(): List<String>? = null
             open fun getValue(key: String): String? = null
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListViewHolder {
@@ -195,20 +203,22 @@ class MainActivity : AppCompatActivity() {
 
             @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
             override fun onBindViewHolder(holder: ListViewHolder, position: Int) {
-                Log.d("MyMain", "Bind like at $position")
+                Log.d("MyMain", "Bind open at $position")
                 Thread{
                     listKeys?.apply {
                         if (position < size) {
                             val key = get(position)
                             val data = getValue(key)
                             val like = getSharedPreferences("dict", MODE_PRIVATE)?.contains(key) == true
-                            runOnUiThread {
-                                holder.itemView.apply {
+                            Log.d("MyMain", "Like status of $key is $like")
+                            holder.itemView.apply {
+                                runOnUiThread {
                                     ta.text = key
                                     tb.text = data
-                                    if(like) vl.setBackgroundResource(R.drawable.ic_like_filled)
+                                    vl.setBackgroundResource(if(like) R.drawable.ic_like_filled else R.drawable.ic_like)
+                                    Log.d("MyMain", "Set like of $key: $like")
                                     setOnClickListener {
-                                        showDictAlert(key, data)
+                                        showDictAlert(key, data) {refresh()}
                                     }
                                     setOnLongClickListener {
                                         cm?.setPrimaryClip(ClipData.newPlainText("SimpleDict", "$key\n$data"))
@@ -239,10 +249,10 @@ class MainActivity : AppCompatActivity() {
 
             override fun getItemCount() = listKeys?.size?:0
 
-            fun refresh() {
+            fun refresh() = Thread{
                 listKeys = getKeys()
                 runOnUiThread { notifyDataSetChanged() }
-            }
+            }.start()
         }
     }
 }

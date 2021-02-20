@@ -8,6 +8,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     val keys get() = dict.keys
     //val values get() = dict.values
     //val size get() = dict.size
+    var latestKeys = arrayOf<String>()
     private val raw: ByteArray
         get() {
             var times = 3
@@ -61,7 +62,10 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         val dataEnd = 64 + dictBlock[127].toInt().let { if (it > 63) 63 else it }
         val key = dictBlock.copyOf(keyLen).decodeToString()
         val data = if (dataEnd > 64) dictBlock.copyOfRange(64, dataEnd).decodeToString() else null
-        dict[key] = data
+        if(key != "") {
+            dict[key] = data
+            latestKeys += key
+        }
         Log.d("MySD", "Fetch $key=$data")
     }
 
@@ -73,6 +77,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     }) {
         val dictBlock = ByteArray(128)
         dict = hashMapOf()
+        latestKeys = arrayOf()
         raw.inputStream().let {
             while (it.read(dictBlock, 0, 128) == 128) analyzeDictBlk(dictBlock)
             doOnLoadSuccess()
@@ -86,6 +91,15 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         sendMessageWithDelay(key)
         client.receiveMessage()
         closeDict()
+        dict.remove(key)
+        val end = latestKeys.size-1
+        if(end > 0) latestKeys = latestKeys.let { oldArr ->
+            var index = -1
+            Array(end) {
+                if(oldArr[it] == key) index = it
+                return@Array if(index < 0 || (index > 0 && it < index)) oldArr[it] else oldArr[it+1]
+            }
+        }
     }
 
     operator fun get(key: String) = dict[key]

@@ -7,6 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StrikethroughSpan
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -15,6 +18,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.children
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.lapism.search.internal.SearchLayout
@@ -49,8 +53,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         ffms.apply {
+            val recyclerView = findViewById<RecyclerView>(R.id.search_recycler_view)
             setAdapterLayoutManager(LinearLayoutManager(this@MainActivity))
-            val adapter = SearchViewHolder(findViewById(R.id.search_recycler_view), findViewById(R.id.search_search_edit_text)).RecyclerViewAdapter()
+            val adapter = SearchViewHolder(recyclerView, findViewById(R.id.search_search_edit_text)).RecyclerViewAdapter()
             setAdapter(adapter)
             navigationIconSupport = SearchLayout.NavigationIconSupport.SEARCH
             setOnNavigationClickListener(object : SearchLayout.OnNavigationClickListener {
@@ -73,7 +78,10 @@ class MainActivity : AppCompatActivity() {
                     if(query.isNotEmpty()) {
                         val key = query.toString()
                         val data = dict[key]
-                        showDictAlert(key, data) { adapter.refresh() }
+                        showDictAlert(key, data, recyclerView.children.toList().let {
+                            val i = it.map { it.ta.text }.indexOf(key)
+                            if(i >= 0) it[i] else null
+                        }) { adapter.refresh() }
                     }
                     return true
                 }
@@ -126,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun showDictAlert(key: String, data: String?, notify: ()->Unit) {
+    private fun showDictAlert(key: String, data: String?, line: View?, refresh: (()->Unit)?=null) {
         val hintAdd = if(data != null && data != "null") "重设" else "添加"
         hasLiked = false
         AlertDialog.Builder(this@MainActivity)
@@ -142,7 +150,7 @@ class MainActivity : AppCompatActivity() {
                                 val newText = t.text.toString()
                                 if (t.text.isNotEmpty() && newText != data) Thread {
                                     dict[key] = newText
-                                    notify()
+                                    line?.tb?.text = newText
                                 }.start()
                                 else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
                             }
@@ -152,7 +160,14 @@ class MainActivity : AppCompatActivity() {
                 .setNeutralButton("删除") { _, _ ->
                     Thread{
                         dict -= key
-                        notify()
+                        line?.apply {
+                            val delKey = SpannableString(key)
+                            val delData = SpannableString(data)
+                            delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            delData.setSpan(StrikethroughSpan(), 0, (data?.length?:0), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            ta.text = delKey
+                            tb.text = delData
+                        }
                     }.start()
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> }
@@ -218,7 +233,7 @@ class MainActivity : AppCompatActivity() {
                                     vl.setBackgroundResource(if(like) R.drawable.ic_like_filled else R.drawable.ic_like)
                                     Log.d("MyMain", "Set like of $key: $like")
                                     setOnClickListener {
-                                        showDictAlert(key, data) {refresh()}
+                                        showDictAlert(key, data, this)
                                     }
                                     setOnLongClickListener {
                                         cm?.setPrimaryClip(ClipData.newPlainText("SimpleDict", "$key\n$data"))

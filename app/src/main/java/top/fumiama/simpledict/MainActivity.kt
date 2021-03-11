@@ -166,6 +166,7 @@ class MainActivity : AppCompatActivity() {
                             delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             delData.setSpan(StrikethroughSpan(), 0, (data?.length?:0), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             ta.text = delKey
+                            tn.text = delKey
                             tb.text = delData
                         }
                     }.start()
@@ -228,6 +229,7 @@ class MainActivity : AppCompatActivity() {
                             Log.d("MyMain", "Like status of $key is $like")
                             holder.itemView.apply {
                                 runOnUiThread {
+                                    tn.text = key
                                     ta.text = key
                                     tb.text = data
                                     vl.setBackgroundResource(if(like) R.drawable.ic_like_filled else R.drawable.ic_like)

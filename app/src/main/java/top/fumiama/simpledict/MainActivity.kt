@@ -10,9 +10,11 @@ import android.text.Spanned
 import android.text.style.StrikethroughSpan
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
+import android.view.inputmethod.InputMethodManager
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -22,8 +24,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.lapism.search.internal.SearchLayout
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.activity_main.ffsw
+import kotlinx.android.synthetic.main.activity_main.view.*
 import kotlinx.android.synthetic.main.dialog_input.view.*
 import kotlinx.android.synthetic.main.line_word.view.*
+import kotlinx.android.synthetic.main.line_word.view.tb
+import kotlinx.android.synthetic.main.line_word.view.tn
 import java.io.FileNotFoundException
 import java.lang.Exception
 
@@ -35,10 +41,13 @@ class MainActivity : AppCompatActivity() {
     private var hasLiked = false
     private var cm: ClipboardManager? = null
     private var ad: ListViewHolder.RecyclerViewAdapter? = null
+    private var lastLikeLine: View? = null
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val ime = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         getSharedPreferences("remote", MODE_PRIVATE)?.apply {
             if(contains("host")) getString("host", host)?.apply { host = this }
             if(contains("port")) getInt("port", port).apply { port = this }
@@ -51,24 +60,31 @@ class MainActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = ad
             setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                ffsw.isEnabled = scrollY == 0
+                this@MainActivity.ffsw.isEnabled = scrollY == 0
             }
-            ffsw.apply {
-                setOnRefreshListener {
-                    fetchThread()
+        }
+
+        ffsw.apply {
+            setOnRefreshListener {
+                fetchThread{
+                    updateSize()
                 }
-                isRefreshing = true
-                fetchThread()
+            }
+            isRefreshing = true
+            fetchThread {
+                updateSize()
             }
         }
 
         ffms.apply {
             val recyclerView = findViewById<RecyclerView>(R.id.search_recycler_view)
             setAdapterLayoutManager(LinearLayoutManager(this@MainActivity))
-            val adapter = SearchViewHolder(recyclerView, findViewById(R.id.search_search_edit_text)).RecyclerViewAdapter()
+            val adapter = SearchViewHolder(recyclerView).RecyclerViewAdapter()
             setAdapter(adapter)
             navigationIconSupport = SearchLayout.NavigationIconSupport.SEARCH
             setMicIconImageResource(R.drawable.ic_setting)
+            val micView = findViewById<ImageButton>(R.id.search_image_view_mic)
+            setClearFocusOnBackPressed(true)
             setOnNavigationClickListener(object : SearchLayout.OnNavigationClickListener {
                 override fun onNavigationClick(hasFocus: Boolean) {
                     if (hasFocus()) {
@@ -80,8 +96,15 @@ class MainActivity : AppCompatActivity() {
             })
             setTextHint(android.R.string.search_go)
             setOnQueryTextListener(object : SearchLayout.OnQueryTextListener {
+                var lastChangeTime = 0L
                 override fun onQueryTextChange(newText: CharSequence): Boolean {
-                    if (newText.isNotEmpty()) adapter.refresh()
+                    postDelayed({
+                        val diff = System.currentTimeMillis() - lastChangeTime
+                        if(diff > 500) {
+                            if (newText.isNotEmpty()) adapter.refresh(newText)
+                        }
+                    }, 1024)
+                    lastChangeTime = System.currentTimeMillis()
                     return true
                 }
 
@@ -140,22 +163,29 @@ class MainActivity : AppCompatActivity() {
                 }
             })
 
-
             setOnFocusChangeListener(object : SearchLayout.OnFocusChangeListener {
                 override fun onFocusChange(hasFocus: Boolean) {
                     navigationIconSupport = if (hasFocus) SearchLayout.NavigationIconSupport.ARROW
-                    else SearchLayout.NavigationIconSupport.SEARCH
+                    else {
+                        micView.postDelayed({ micView.visibility = View.VISIBLE }, 233)
+                        SearchLayout.NavigationIconSupport.SEARCH
+                    }
                 }
             })
+
+            this@MainActivity.ffc.setOnTouchListener { _, e ->
+                if (e.action == MotionEvent.ACTION_UP && mSearchEditText?.text?.isNotEmpty() == true) {
+                    ime.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+                }
+                false
+            }
         }
     }
 
     override fun onBackPressed() {
         if(ffms.hasFocus()) {
             if(hasLiked) ad?.refresh()
-            ffms.clearFocus()
-        }
-        else super.onBackPressed()
+        } else super.onBackPressed()
     }
 
     /*override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -170,13 +200,18 @@ class MainActivity : AppCompatActivity() {
         }
     }*/
 
-    private fun fetchThread() {
+    private fun updateSize() {
+        lastLikeLine?.fftc?.text = dict?.size?.toString()?:"0"
+    }
+
+    private fun fetchThread(doWhenFinish: (()->Unit)? = null) {
         Thread{
             dict?.fetchDict {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
                     ffsw.isRefreshing = false
                     ad?.refresh()
+                    doWhenFinish?.apply { this() }
                 }
             }
         }.start()
@@ -200,6 +235,7 @@ class MainActivity : AppCompatActivity() {
                                 if (t.diet.text.isNotEmpty() && newText != data) Thread {
                                     dict?.set(key, newText)
                                     line?.tb?.text = newText
+                                    updateSize()
                                 }.start()
                                 else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
                             }
@@ -217,6 +253,7 @@ class MainActivity : AppCompatActivity() {
                             ta.text = delKey
                             tn.text = delKey
                             tb.text = delData
+                            updateSize()
                         }
                     }.start()
                 }
@@ -224,9 +261,9 @@ class MainActivity : AppCompatActivity() {
                 .show()
     }
 
-    inner class SearchViewHolder(itemView: View, private val editText: EditText) : ListViewHolder(itemView) {
+    inner class SearchViewHolder(itemView: View) : ListViewHolder(itemView) {
         inner class RecyclerViewAdapter : ListViewHolder.RecyclerViewAdapter() {
-            override fun getKeys() = filter(editText.text)
+            override fun getKeys(filterText: CharSequence?) = filterText?.let { filter(it) }
             override fun getValue(key: String) = dict?.get(key)
             private fun filter(text: CharSequence): List<String> {
                 val selectSet = dict?.keys?.filter { it.contains(text, true) }?.toSet()?.plus(dict?.filterValues { it?.contains(text, true) ?: false }.let {
@@ -242,12 +279,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class LikeViewHolder(itemView: View) : ListViewHolder(itemView) {
-        inner class RecyclerViewAdapter: ListViewHolder.RecyclerViewAdapter(){
-            override fun getKeys() = getSharedPreferences("dict", MODE_PRIVATE).all.keys.toTypedArray().let{
+        inner class RecyclerViewAdapter: ListViewHolder.RecyclerViewAdapter(true){
+            var capacity = 5
+            override fun loadMore() {
+                capacity += 5
+                refresh()
+            }
+            override fun getKeys(filterText: CharSequence?) = getSharedPreferences("dict", MODE_PRIVATE).all.keys.toTypedArray().let{
                 dict?.let { d ->
                     val end = d.latestKeys.size
-                    val start = if(end > 5) end - 5 else 0
-                    (d.latestKeys.copyOfRange(start, end) + it).toList()
+                    val start = if(end > capacity) end - capacity else 0
+                    (it + d.latestKeys.copyOfRange(start, end).reversedArray()).toList()
                 }?: emptyList()
             }
             override fun getValue(key: String) = dict?.get(key)?:getSharedPreferences("dict", MODE_PRIVATE).getString(key, "null")
@@ -255,11 +297,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     open inner class ListViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        open inner class RecyclerViewAdapter :
+        open inner class RecyclerViewAdapter(private val showLoadMore: Boolean = false) :
             RecyclerView.Adapter<ListViewHolder>() {
             private var listKeys: List<String>? = null
-            open fun getKeys(): List<String>? = null
+            open fun getKeys(filterText: CharSequence? = null): List<String>? = null
             open fun getValue(key: String): String? = null
+            open fun loadMore() {}
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListViewHolder {
                 return ListViewHolder(
                     LayoutInflater.from(parent.context)
@@ -279,6 +322,8 @@ class MainActivity : AppCompatActivity() {
                             Log.d("MyMain", "Like status of $key is $like")
                             holder.itemView.apply {
                                 runOnUiThread {
+                                    ta.visibility = View.VISIBLE
+                                    lwclast.visibility = View.GONE
                                     tn.text = key
                                     ta.text = key
                                     tb.text = data
@@ -309,15 +354,27 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             }
+                        } else if(showLoadMore && position == size) runOnUiThread{
+                            holder.itemView.apply {
+                                lastLikeLine = this
+                                ta.visibility = View.GONE
+                                lwclast.visibility = View.VISIBLE
+                                tn.text = "motkyep..."
+                                tb.text = "加载更多..."
+                                updateSize()
+                                setOnClickListener {
+                                    loadMore()
+                                }
+                            }
                         }
                     }
                 }.start()
             }
 
-            override fun getItemCount() = listKeys?.size?:0
+            override fun getItemCount() = (listKeys?.size?:0) + (if(showLoadMore) 1 else 0)
 
-            fun refresh() = Thread{
-                listKeys = getKeys()
+            fun refresh(filterText: CharSequence? = null) = Thread{
+                listKeys = getKeys(filterText)
                 runOnUiThread { notifyDataSetChanged() }
             }.start()
         }

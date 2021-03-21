@@ -5,6 +5,7 @@ import java.lang.Thread.sleep
 
 class SimpleDict(private val client: Client, private val pwd: String) {   //must run in thread
     private var dict = HashMap<String, String?>()
+    val size get() = dict.size
     val keys get() = dict.keys
     //val values get() = dict.values
     //val size get() = dict.size

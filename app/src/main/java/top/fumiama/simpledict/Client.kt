@@ -20,34 +20,38 @@ class Client(private val ip: String, private val port: Int) {
     /**
      * 初始化普通交互连接
      */
-    fun initConnect(depth: Int = 0){
+    fun initConnect(depth: Int = 0): Boolean{
         if(depth > 3) Log.d("MyC", "connect server failed after $depth tries")
         else try {
             sc = Socket(ip, port) //通过socket连接服务器
             din = sc?.getInputStream()  //获取输入流并转换为StreamReader，约定编码格式
             dout = sc?.getOutputStream()    //获取输出流
             sc?.soTimeout = 2333  //设置连接超时限制
-            if (isConnect) Log.d("MyC", "connect server successful")
-            else {
+            return if (isConnect) {
+                Log.d("MyC", "connect server successful")
+                true
+            } else {
                 Log.d("MyC", "connect server failed, now retry...")
                 initConnect(depth + 1)
             }
         } catch (e: IOException) {      //获取输入输出流是可能报IOException的，所以必须try-catch
             e.printStackTrace()
         }
+        return false
     }
 
     /**
      * 发送数据至服务器
      * @param message 要发送至服务器的字符串
      */
-    fun sendMessage(message: CharSequence?) {
+    fun sendMessage(message: CharSequence?): Boolean {
         try {
             if (isConnect) {
                 if (message != null) {        //判断输出流或者消息是否为空，为空的话会产生nullpoint错误
                     dout?.write(message.toString().toByteArray())
                     dout?.flush()
                     Log.d("MyC", "Send msg: $message")
+                    return true
                 } else Log.d("MyC", "The message to be sent is empty")
                 Log.d("MyC", "send message succeed")
             } else Log.d("MyC", "send message failed: no connect")
@@ -55,6 +59,7 @@ class Client(private val ip: String, private val port: Int) {
             Log.d("MyC", "send message failed: crash")
             e.printStackTrace()
         }
+        return false
     }
 
     fun receiveRawMessage(totalSize: Int = -1, bufferSize: Int = 4096) : ByteArray {
@@ -82,17 +87,16 @@ class Client(private val ip: String, private val port: Int) {
     /**
      * 关闭连接
      */
-    fun closeConnect() {
-        try {
+    fun closeConnect() = try {
             din?.close()
             dout?.close()
             sc?.close()
             sc = null
             din = null
             dout = null
+            true
         } catch (e: IOException) {
             e.printStackTrace()
+            false
         }
-        Log.d("MyC", "关闭连接")
-    }
 }

@@ -7,8 +7,6 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     private var dict = HashMap<String, String?>()
     val size get() = dict.size
     val keys get() = dict.keys
-    //val values get() = dict.values
-    //val size get() = dict.size
     var latestKeys = arrayOf<String>()
     private val raw: ByteArray
         get() {
@@ -17,25 +15,26 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
             var firstRecv: ByteArray
             do {
                 re = byteArrayOf()
-                initDict()
-                sendMessageWithDelay("cat", 2333)
-                try {
-                    firstRecv = client.receiveRawMessage()
-                    val firstStr = firstRecv.decodeToString()
-                    var length = ""
-                    for ((i, c) in firstStr.withIndex()) {
-                        if(c.isDigit()) length += c
-                        else {
-                            if(i + 1 < firstRecv.size) re = firstRecv.copyOfRange(i, firstRecv.size)
-                            break
+                if(initDict()) {
+                    sendMessageWithDelay("cat", 2333)
+                    try {
+                        firstRecv = client.receiveRawMessage()
+                        val firstStr = firstRecv.decodeToString()
+                        var length = ""
+                        for ((i, c) in firstStr.withIndex()) {
+                            if(c.isDigit()) length += c
+                            else {
+                                if(i + 1 < firstRecv.size) re = firstRecv.copyOfRange(i, firstRecv.size)
+                                break
+                            }
                         }
+                        re += client.receiveRawMessage(length.toInt() - re.size)
+                        break
+                    } catch (e: Exception){
+                        e.printStackTrace()
                     }
-                    re += client.receiveRawMessage(length.toInt() - re.size)
-                    break
-                } catch (e: Exception){
-                    e.printStackTrace()
+                    closeDict()
                 }
-                closeDict()
             } while (times-- > 0)
             return re
         }
@@ -45,16 +44,22 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         sleep(delay)
     }.start()
 
-    private fun initDict() {
-        client.initConnect()
-        client.sendMessage(pwd)
-        client.receiveRawMessage()
-        sleep(233)
+    private fun initDict(): Boolean {
+        if(client.initConnect()){
+            if(client.sendMessage(pwd)) {
+                client.receiveRawMessage()
+                sleep(233)
+                return true
+            }
+        }
+        return false
     }
 
-    private fun closeDict() {
-        client.sendMessage("quit")
-        client.closeConnect()
+    private fun closeDict(): Boolean {
+        if(client.sendMessage("quit")) {
+            if (client.closeConnect()) return true
+        }
+        return false
     }
 
     private fun analyzeDictBlk(dictBlock: ByteArray) {
@@ -70,7 +75,6 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         Log.d("MySD", "Fetch $key=$data")
     }
 
-    //fun filterKeys(predicate: (String) -> Boolean) = dict.filterKeys(predicate)
     fun filterValues(predicate: (String?) -> Boolean) = dict.filterValues(predicate)
 
     fun fetchDict(doOnLoadSuccess: ()->Unit = {
@@ -86,19 +90,21 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     }
 
     operator fun minusAssign(key: String) {
-        initDict()
-        sendMessageWithDelay("del")
-        client.receiveMessage()
-        sendMessageWithDelay(key)
-        client.receiveMessage()
-        closeDict()
-        dict.remove(key)
-        val end = latestKeys.size-1
-        if(end > 0) latestKeys = latestKeys.let { oldArr ->
-            var index = -1
-            Array(end) {
-                if(oldArr[it] == key) index = it
-                return@Array if(index < 0 || (index > 0 && it < index)) oldArr[it] else oldArr[it+1]
+        if(initDict()) {
+            sendMessageWithDelay("del")
+            client.receiveMessage()
+            sendMessageWithDelay(key)
+            client.receiveMessage()
+            if(closeDict()) {
+                dict.remove(key)
+                val end = latestKeys.size-1
+                if(end > 0) latestKeys = latestKeys.let { oldArr ->
+                    var index = -1
+                    Array(end) {
+                        if(oldArr[it] == key) index = it
+                        return@Array if(index < 0 || (index > 0 && it < index)) oldArr[it] else oldArr[it+1]
+                    }
+                }
             }
         }
     }
@@ -107,15 +113,15 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
 
     operator fun set(key: String, value: String): String? {
         val p = dict[key]
-        initDict()
-        sendMessageWithDelay("set")
-        client.receiveMessage()
-        sendMessageWithDelay(key)
-        client.receiveMessage()
-        sendMessageWithDelay(value)
-        client.receiveMessage()
-        closeDict()
-        dict[key] = value
+        if(initDict()) {
+            sendMessageWithDelay("set")
+            client.receiveMessage()
+            sendMessageWithDelay(key)
+            client.receiveMessage()
+            sendMessageWithDelay(value)
+            client.receiveMessage()
+            if(closeDict()) dict[key] = value
+        }
         return p
     }
 }

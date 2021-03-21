@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private var dict: SimpleDict? = null
     private var hasLiked = false
     private var cm: ClipboardManager? = null
-    private var ad: ListViewHolder.RecyclerViewAdapter? = null
+    private var ad: LikeViewHolder.RecyclerViewAdapter? = null
     private var lastLikeLine: View? = null
 
     @SuppressLint("ClickableViewAccessibility")
@@ -200,7 +200,7 @@ class MainActivity : AppCompatActivity() {
         }
     }*/
 
-    private fun updateSize() {
+    private fun updateSize() = runOnUiThread {
         lastLikeLine?.fftc?.text = dict?.size?.toString()?:"0"
     }
 
@@ -210,6 +210,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
                     ffsw.isRefreshing = false
+                    ad?.capacity = 5
                     ad?.refresh()
                     doWhenFinish?.apply { this() }
                 }

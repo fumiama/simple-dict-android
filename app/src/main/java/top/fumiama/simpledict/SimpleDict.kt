@@ -8,7 +8,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
     val size get() = dict.size
     val keys get() = dict.keys
     var latestKeys = arrayOf<String>()
-    private val raw: ByteArray
+    private val raw: ByteArray?
         get() {
             var times = 3
             var re: ByteArray
@@ -36,7 +36,7 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
                     closeDict()
                 }
             } while (times-- > 0)
-            return re
+            return if(re.isEmpty()) null else re
         }
     
     private fun sendMessageWithDelay(msg: CharSequence, delay: Long = 233) = Thread{
@@ -77,16 +77,19 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
 
     fun filterValues(predicate: (String?) -> Boolean) = dict.filterValues(predicate)
 
-    fun fetchDict(doOnLoadSuccess: ()->Unit = {
+    fun fetchDict(doOnLoadFailure: ()->Unit = {
         Log.d("MySD", "Fetch dict success")
-    }) {
+    }, doOnLoadSuccess: ()->Unit = {
+        Log.d("MySD", "Fetch dict success")
+    }, doCommon: (() -> Unit)? = null) {
         val dictBlock = ByteArray(128)
         dict = hashMapOf()
         latestKeys = arrayOf()
-        raw.inputStream().let {
+        raw?.inputStream()?.let {
             while (it.read(dictBlock, 0, 128) == 128) analyzeDictBlk(dictBlock)
             doOnLoadSuccess()
-        }
+        }?:doOnLoadFailure()
+        doCommon?.let { it() }
     }
 
     operator fun minusAssign(key: String) {

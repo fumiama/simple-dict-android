@@ -157,12 +157,6 @@ class MainActivity : AppCompatActivity() {
                 }
             })
 
-            setOnClearClickListener(object : SearchLayout.OnClearClickListener {
-                override fun onClearClick() {
-                    Toast.makeText(this@MainActivity, "clear", Toast.LENGTH_SHORT).show()
-                }
-            })
-
             setOnFocusChangeListener(object : SearchLayout.OnFocusChangeListener {
                 override fun onFocusChange(hasFocus: Boolean) {
                     navigationIconSupport = if (hasFocus) SearchLayout.NavigationIconSupport.ARROW
@@ -206,9 +200,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchThread(doWhenFinish: (()->Unit)? = null) {
         Thread{
-            dict?.fetchDict {
+            dict?.fetchDict({
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "刷新失败", Toast.LENGTH_SHORT).show()
+                }
+            }, {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
+                }
+            }) {
+                runOnUiThread {
                     ffsw.isRefreshing = false
                     ad?.capacity = 5
                     ad?.refresh()

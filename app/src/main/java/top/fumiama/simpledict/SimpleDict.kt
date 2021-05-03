@@ -3,7 +3,7 @@ package top.fumiama.simpledict
 import android.util.Log
 import java.lang.Thread.sleep
 
-class SimpleDict(private val client: Client, private val pwd: String) {   //must run in thread
+class SimpleDict(private val client: Client, private val pwd: String, private val spwd: String?) {   //must run in thread
     private var dict = HashMap<String, String?>()
     val size get() = dict.size
     val keys get() = dict.keys
@@ -92,39 +92,45 @@ class SimpleDict(private val client: Client, private val pwd: String) {   //must
         doCommon?.let { it() }
     }
 
-    operator fun minusAssign(key: String) {
-        if(initDict()) {
-            sendMessageWithDelay("del")
+    fun del(key: String): Boolean {
+        if(spwd == null) return false
+        else if(initDict()) {
+            sendMessageWithDelay("del$spwd")
             client.receiveMessage()
             sendMessageWithDelay(key)
-            client.receiveMessage()
-            if(closeDict()) {
-                dict.remove(key)
-                val end = latestKeys.size-1
-                if(end > 0) latestKeys = latestKeys.let { oldArr ->
-                    var index = -1
-                    Array(end) {
-                        if(oldArr[it] == key) index = it
-                        return@Array if(index < 0 || (index > 0 && it < index)) oldArr[it] else oldArr[it+1]
+            if(client.receiveMessage() == "succ") {
+                if(closeDict()) {
+                    dict.remove(key)
+                    val end = latestKeys.size-1
+                    if(end > 0) latestKeys = latestKeys.let { oldArr ->
+                        var index = -1
+                        Array(end) {
+                            if(oldArr[it] == key) index = it
+                            return@Array if(index < 0 || (index > 0 && it < index)) oldArr[it] else oldArr[it+1]
+                        }
                     }
+                    return true
                 }
-            }
+            } else closeDict()
         }
+        return false
     }
 
     operator fun get(key: String) = dict[key]
 
-    operator fun set(key: String, value: String): String? {
-        val p = dict[key]
-        if(initDict()) {
-            sendMessageWithDelay("set")
+    fun set(key: String, value: String): Boolean {
+        if(spwd == null) return false
+        else if(initDict()) {
+            sendMessageWithDelay("set$spwd")
             client.receiveMessage()
             sendMessageWithDelay(key)
-            client.receiveMessage()
-            sendMessageWithDelay(value)
-            client.receiveMessage()
-            if(closeDict()) dict[key] = value
+            if(client.receiveMessage() == "data") {
+                sendMessageWithDelay(value)
+                client.receiveMessage()
+                if(closeDict()) dict[key] = value
+                return true
+            } else closeDict()
         }
-        return p
+        return false
     }
 }

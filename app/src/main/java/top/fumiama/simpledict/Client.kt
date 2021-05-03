@@ -62,7 +62,7 @@ class Client(private val ip: String, private val port: Int) {
         return false
     }
 
-    fun receiveRawMessage(totalSize: Int = -1, bufferSize: Int = 4096) : ByteArray {
+    fun receiveRawMessage(totalSize: Int = -1, bufferSize: Int = 1048576) : ByteArray {
         var re = byteArrayOf()
         try {
             if (isConnect) {
@@ -72,8 +72,9 @@ class Client(private val ip: String, private val port: Int) {
                 do {
                     a = din?.read(inMessage)?:0 //a存储返回消息的长度
                     re += inMessage.copyOf(a)
-                    Log.d("MyC", "reply length:$a: ${re.decodeToString()}")
-                } while (a == bufferSize || totalSize > re.size)
+                    Log.d("MyC", "reply length:$a")
+                    if(totalSize < 0 && a < bufferSize) break
+                } while (totalSize > re.size)
             } else Log.d("MyC", "no connect to receive message")
         } catch (e: IOException) {
             Log.d("MyC", "receive message failed")

@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private var host = "127.0.0.1"
     private var port = 80
     private var pwd = "demo"
+    private var spwd: String? = null
     private var dict: SimpleDict? = null
     private var hasLiked = false
     private var cm: ClipboardManager? = null
@@ -52,8 +53,9 @@ class MainActivity : AppCompatActivity() {
             if(contains("host")) getString("host", host)?.apply { host = this }
             if(contains("port")) getInt("port", port).apply { port = this }
             if(contains("pwd")) getString("pwd", pwd)?.apply { pwd = this }
+            if(contains("spwd")) getString("spwd", spwd)?.apply { spwd = this }
         }
-        dict = SimpleDict(Client(host, port), pwd)
+        dict = SimpleDict(Client(host, port), pwd, spwd)
         ad = LikeViewHolder(ffr).RecyclerViewAdapter()
         cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         ffr.apply {
@@ -110,7 +112,7 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onQueryTextSubmit(query: CharSequence): Boolean {
                     if(query.isNotEmpty()) {
-                        val key = query.toString()
+                        val key = query.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
                         val data = dict?.get(key)
                         showDictAlert(key, data, recyclerView.children.toList().let {
                             val i = it.map { it.ta.text }.indexOf(key)
@@ -135,17 +137,23 @@ class MainActivity : AppCompatActivity() {
                                     val h = info.substringBefore(':')
                                     val l = info.substringAfter(':')
                                     val p = l.substringBefore('_').toInt()
-                                    val w = l.substringAfter('_')
+                                    var w = l.substringAfter('_')
                                     if (h != "" && p > 0 && p < 65536 && w != "") {
                                         getSharedPreferences("remote", MODE_PRIVATE)?.edit {
                                             putString("host", h)
                                             putInt("port", p)
+                                            if(w.contains('^')) {
+                                                val s = w.substringAfterLast('^')
+                                                if (s != "") {
+                                                    putString("spwd", s)
+                                                    w = w.substringBeforeLast('^')
+                                                }
+                                            }
                                             putString("pwd", w)
                                             apply()
                                             Toast.makeText(this@MainActivity, "下次生效", Toast.LENGTH_SHORT).show()
                                             return@setPositiveButton
-                                        }
-                                        throw FileNotFoundException("getSharedPreferences named \"remote\" error.")
+                                        }?:throw FileNotFoundException("getSharedPreferences named \"remote\" error.")
                                     } else throw IllegalArgumentException()
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -233,11 +241,14 @@ class MainActivity : AppCompatActivity() {
                             .setTitle("$hintAdd$key")
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                val newText = t.diet.text.toString()
+                                val newText = t.diet.text.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
                                 if (t.diet.text.isNotEmpty() && newText != data) Thread {
-                                    dict?.set(key, newText)
-                                    line?.tb?.text = newText
-                                    updateSize()
+                                    if(dict?.set(key, newText) == true) {
+                                        line?.tb?.text = newText
+                                        updateSize()
+                                    } else runOnUiThread {
+                                        Toast.makeText(this, "失败", Toast.LENGTH_SHORT).show()
+                                    }
                                 }.start()
                                 else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
                             }
@@ -246,8 +257,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNeutralButton("删除") { _, _ ->
                     Thread{
-                        dict?.minusAssign(key)
-                        line?.apply {
+                        if(dict?.del(key) == true) line?.apply {
                             val delKey = SpannableString(key)
                             val delData = SpannableString(data)
                             delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -256,6 +266,9 @@ class MainActivity : AppCompatActivity() {
                             tn.text = delKey
                             tb.text = delData
                             updateSize()
+                        }
+                        else runOnUiThread {
+                            Toast.makeText(this, "失败", Toast.LENGTH_SHORT).show()
                         }
                     }.start()
                 }

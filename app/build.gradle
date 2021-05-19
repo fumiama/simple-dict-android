@@ -12,8 +12,8 @@ android {
         applicationId "top.fumiama.simpledict"
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 15
-        versionName '2.0.1'
+        versionCode 16
+        versionName '2.1'
         resConfigs "zh", "zh-rCN"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

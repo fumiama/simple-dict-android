@@ -62,30 +62,58 @@ class Client(private val ip: String, private val port: Int) {
         return false
     }
 
-    fun receiveRawMessage(totalSize: Int = -1, bufferSize: Int = 1048576) : ByteArray {
-        var re = byteArrayOf()
-        try {
-            if (isConnect) {
-                Log.d("MyC", "开始接收服务端信息")
-                val inMessage = ByteArray(bufferSize)     //设置接受缓冲，避免接受数据过长占用过多内存
-                var a: Int
-                do {
-                    a = din?.read(inMessage)?:0 //a存储返回消息的长度
-                    if(a > 0) {
-                        re += inMessage.copyOf(a)
-                        Log.d("MyC", "reply length:$a")
-                        if(totalSize < 0 && a < bufferSize) break
-                    } else break
-                } while (totalSize > re.size)
-            } else Log.d("MyC", "no connect to receive message")
-        } catch (e: IOException) {
-            Log.d("MyC", "receive message failed")
-            e.printStackTrace()
+    var buffer = byteArrayOf()
+
+    fun receiveRawMessage(totalSize: Int = -1, bufferSize: Int = 1048576, setProgress: Boolean = false) : ByteArray {
+        if(totalSize == buffer.size) {
+            val re = buffer
+            buffer = byteArrayOf()
+            return re
+        } else {
+            var re = byteArrayOf()
+            try {
+                if (isConnect) {
+                    Log.d("MyC", "开始接收服务端信息")
+                    val inMessage = ByteArray(bufferSize)     //设置接受缓冲，避免接受数据过长占用过多内存
+                    var a: Int
+                    do {
+                        a = din?.read(inMessage)?:0 //a存储返回消息的长度
+                        if(a > 0) {
+                            re += inMessage.copyOf(a)
+                            Log.d("MyC", "reply length:$a")
+                            if(totalSize < 0 && a < bufferSize) break
+                            else if(setProgress && totalSize > 0) progress?.notify(100 * re.size / totalSize)
+                        } else break
+                    } while (totalSize > re.size)
+                } else Log.d("MyC", "no connect to receive message")
+            } catch (e: IOException) {
+                Log.d("MyC", "receive message failed")
+                e.printStackTrace()
+            }
+            if(totalSize > 0 && re.size > totalSize) {
+                Log.d("MyC", "Reduce re size from ${re.size} to $totalSize")
+                buffer += re.copyOfRange(totalSize, re.size)
+                re = re.copyOf(totalSize)
+            } else if(totalSize > 0 && buffer.isNotEmpty()) {
+                Log.d("MyC", "Increase re size.")
+                buffer += re
+                if(buffer.size > totalSize) {
+                    re = buffer.copyOf(totalSize)
+                    buffer = buffer.copyOfRange(totalSize, buffer.size)
+                } else {
+                    re = buffer
+                    buffer = byteArrayOf()
+                }
+            } else if(totalSize < 0 && buffer.isNotEmpty()) {
+                re = buffer
+                buffer = byteArrayOf()
+                Log.d("MyC", "clear buffer")
+            }
+            return re
         }
-        return re
     }
 
-    fun receiveMessage() = receiveRawMessage().decodeToString()
+    fun receiveMessage(totalSize: Int = -1) = receiveRawMessage(totalSize).decodeToString()
 
     /**
      * 关闭连接
@@ -102,4 +130,10 @@ class Client(private val ip: String, private val port: Int) {
             e.printStackTrace()
             false
         }
+
+    var progress: Progress? = null
+
+    interface Progress {
+        fun notify(progressPercentage: Int)
+    }
 }

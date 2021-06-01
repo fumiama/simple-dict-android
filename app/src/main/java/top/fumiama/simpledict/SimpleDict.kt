@@ -1,84 +1,99 @@
 package top.fumiama.simpledict
 
 import android.util.Log
+import java.io.File
+import java.lang.Thread.sleep
+import java.security.MessageDigest
 
-class SimpleDict(private val client: Client, private val pwd: String, private val spwd: String?) {   //must run in thread
+class SimpleDict(private val client: Client, private val pwd: String, private val externalCacheDir: File?, private val spwd: String?) {   //must run in thread
     private var dict = HashMap<String, String?>()
     val size get() = dict.size
     val keys get() = dict.keys
     var latestKeys = arrayOf<String>()
+    private val md5File = File(externalCacheDir, "md5")
+    private val dspFile = File(externalCacheDir, "dsp")
     private val raw: ByteArray?
         get() {
             var times = 3
-            var re: ByteArray
-            var firstRecv: ByteArray
-            do {
-                re = byteArrayOf()
+            var re: ByteArray? = null
+            var exit = false
+            while(times-- > 0 && !exit) {
                 if(initDict()) {
-                    sendMessage("cat")
+                    client.sendMessage("cat")
                     try {
-                        firstRecv = client.receiveRawMessage()
-                        val firstStr = firstRecv.decodeToString()
                         var length = ""
-                        Log.d("MySD", "first str: $firstStr")
-                        for ((i, c) in firstStr.withIndex()) {
-                            if(c.isDigit()) length += c
-                            else {
-                                if(i + 2 < firstRecv.size) re = firstRecv.copyOfRange(i + 1, firstRecv.size)
-                                break
-                            }
+                        var c = client.read()
+                        while (c?.isDigit() == true) {
+                            length += c
+                            c = client.read()
                         }
                         Log.d("MySD", "length: $length")
-                        re += client.receiveRawMessage(length.toInt() - re.size)
-                        closeDict()
-                        break
+                        re = client.receiveRawMessage(length.toInt())
+                        exit = true
                     } catch (e: Exception){
                         e.printStackTrace()
-                        closeDict()
                     }
-                }
-            } while (times-- > 0)
-            return if(re.isEmpty()) null else re
+                    closeDict()
+                } else sleep(233)
+            }
+            return re
         }
-    
-    private fun sendMessage(msg: CharSequence) = client.sendMessage(msg)
 
     private fun initDict(): Boolean {
         if(client.initConnect()){
             if(client.sendMessage(pwd)) {
-                client.receiveRawMessage(31)
-                return true
+                return client.receiveRawMessage(31).size == 31
             }
         }
         return false
     }
 
     private fun closeDict(): Boolean {
-        if(client.sendMessage("quit")) {
-            if (client.closeConnect()) return true
+        client.sendMessage("quit")
+        return client.closeConnect()
+    }
+
+    private fun saveDict(data: ByteArray) {
+        if(externalCacheDir?.exists() != true) externalCacheDir?.mkdirs()
+        if(externalCacheDir?.exists() == true) {
+            dspFile.writeBytes(data)
+            md5File.writeBytes(MessageDigest.getInstance("md5").digest(data))
         }
-        return false
+    }
+    
+    private fun hasNewItem(md5: ByteArray): Boolean =
+        if(initDict()) {
+            client.sendMessage("md5".toByteArray() + md5)
+            client.receiveRawMessage(3)     //md5
+            val re = client.receiveMessage(4)
+            closeDict()
+            Log.d("MySD", "Check md5: $re")
+            re == "nequ"
+        } else false
+
+    private fun analyzeDict(datas: ByteArray, saveDict: Boolean) {
+        SimpleProtobuf.getDictArray(datas).forEach { d ->
+            d?.apply {
+                val k = key.decodeToString()
+                dict[k] = data.decodeToString()
+                latestKeys += k
+            }
+        }
+        if(saveDict) saveDict(datas)
     }
 
     fun filterValues(predicate: (String?) -> Boolean) = dict.filterValues(predicate)
 
-    fun fetchDict(doOnLoadFailure: ()->Unit = {
-        Log.d("MySD", "Fetch dict success")
-    }, doOnLoadSuccess: ()->Unit = {
-        Log.d("MySD", "Fetch dict success")
-    }, doCommon: (() -> Unit)? = null) {
+    fun fetchDict(doOnLoadFailure: ()->Unit, doOnLoadSuccess: ()->Unit, doCommon: (() -> Unit)? = null) {
         dict = hashMapOf()
         latestKeys = arrayOf()
-        raw?.let {
-            SimpleProtobuf.getDictArray(it).forEach { d ->
-                d?.apply {
-                    val k = key.decodeToString()
-                    dict[k] = data.decodeToString()
-                    latestKeys += k
-                }
-            }
+        val noChange = md5File.exists() && dspFile.exists() && !hasNewItem(md5File.readBytes())
+        val data = if(noChange) dspFile.readBytes() else raw
+        if(data == null) doOnLoadFailure()
+        else {
+            analyzeDict(data, !noChange)
             doOnLoadSuccess()
-        }?:doOnLoadFailure()
+        }
         doCommon?.let { it() }
     }
 
@@ -86,9 +101,9 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         if(spwd == null) return false
         else if(initDict()) {
             val delPass = "del$spwd"
-            sendMessage(delPass)
+            client.sendMessage(delPass)
             client.receiveRawMessage(delPass.length)
-            sendMessage(key)
+            client.sendMessage(key)
             if(client.receiveMessage(4) == "succ") {
                 if(closeDict()) {
                     dict.remove(key)
@@ -115,11 +130,11 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         if((contain && del(key)) || !contain) {
             if(initDict()) {
                 val setPass = "set$spwd"
-                sendMessage(setPass)
+                client.sendMessage(setPass)
                 client.receiveRawMessage(setPass.length)
-                sendMessage(key)
+                client.sendMessage(key)
                 if(client.receiveMessage(4) == "data") {
-                    sendMessage(value)
+                    client.sendMessage(value)
                     client.receiveMessage(4)
                     if(closeDict()) dict[key] = value
                     return true

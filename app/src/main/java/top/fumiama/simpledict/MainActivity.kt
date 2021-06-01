@@ -30,6 +30,7 @@ import kotlinx.android.synthetic.main.dialog_input.view.*
 import kotlinx.android.synthetic.main.line_word.view.*
 import kotlinx.android.synthetic.main.line_word.view.tb
 import kotlinx.android.synthetic.main.line_word.view.tn
+import java.io.File
 import java.io.FileNotFoundException
 import java.lang.Exception
 
@@ -55,7 +56,7 @@ class MainActivity : AppCompatActivity() {
             if(contains("pwd")) getString("pwd", pwd)?.apply { pwd = this }
             if(contains("spwd")) getString("spwd", spwd)?.apply { spwd = this }
         }
-        dict = SimpleDict(Client(host, port), pwd, spwd)
+        dict = SimpleDict(Client(host, port), pwd, externalCacheDir, spwd)
         ad = LikeViewHolder(ffr).RecyclerViewAdapter()
         cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         ffr.apply {
@@ -68,7 +69,7 @@ class MainActivity : AppCompatActivity() {
 
         ffsw.apply {
             setOnRefreshListener {
-                fetchThread{
+                fetchThread {
                     updateSize()
                 }
             }

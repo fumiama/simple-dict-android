@@ -1,9 +1,6 @@
 package top.fumiama.simpledict;
 
-import android.util.Log;
-
 import org.jetbrains.annotations.NotNull;
-
 import java.util.Stack;
 
 public class SimpleProtobuf {
@@ -21,7 +18,7 @@ public class SimpleProtobuf {
             offset += getSLLE(raw, offset).len; //struct_len
             offset += getSLLE(raw, offset).len; //type
             s = getSLLE(raw, offset);           //data len
-            Log.d("MySPB", "Data len:" + s.value);
+            //Log.d("MySPB", "Data len:" + s.value);
             Dict d = new Dict();
             d.key = new byte[s.value];
             offset += s.len;
@@ -29,7 +26,7 @@ public class SimpleProtobuf {
             offset += s.value;
             offset += getSLLE(raw, offset).len; //type
             s = getSLLE(raw, offset);           //data len
-            Log.d("MySPB", "Data len:" + s.value);
+            //Log.d("MySPB", "Data len:" + s.value);
             d.data = new byte[s.value];
             offset += s.len;
             System.arraycopy(raw, offset, d.data, 0, s.value);

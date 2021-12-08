@@ -75,8 +75,19 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         SimpleProtobuf.getDictArray(datas).forEach { d ->
             d?.apply {
                 val k = key.decodeToString()
-                dict[k] = data.decodeToString()
-                latestKeys += k
+                if(saveDict) {
+                    if(k.toByteArray().contentEquals(key)) {
+                        dict[k] = data.decodeToString()
+                        latestKeys += k
+                    } else {
+                        send_del(key) // 去错
+                    }
+                } else if(!dict.containsKey(k)){
+                    dict[k] = data.decodeToString()
+                    latestKeys += k
+                } else {
+                    send_del(key) // 去重
+                }
             }
         }
         if(saveDict) saveDict(datas)
@@ -97,7 +108,7 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         doCommon?.let { it() }
     }
 
-    fun del(key: String): Boolean {
+    fun send_del(key: String): Boolean {
         if(spwd == null) return false
         else if(initDict()) {
             val delPass = "del$spwd"
@@ -122,12 +133,26 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         return false
     }
 
+    private fun send_del(key: ByteArray): Boolean {
+        if(spwd == null) return false
+        else if(initDict()) {
+            val delPass = "del$spwd"
+            client.sendMessage(delPass)
+            client.receiveRawMessage(delPass.length)
+            client.sendMessage(key)
+            if(client.receiveMessage(4) == "succ") {
+                return closeDict()
+            } else closeDict()
+        }
+        return false
+    }
+
     operator fun get(key: String) = dict[key]
 
     fun set(key: String, value: String): Boolean {
         //if(spwd == null) return false
         val contain = dict.containsKey(key)
-        if((contain && del(key)) || !contain) {
+        if((contain && send_del(key)) || !contain) {
             if(initDict()) {
                 val setPass = "set$spwd"
                 client.sendMessage(setPass)

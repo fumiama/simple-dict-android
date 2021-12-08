@@ -30,7 +30,6 @@ import kotlinx.android.synthetic.main.dialog_input.view.*
 import kotlinx.android.synthetic.main.line_word.view.*
 import kotlinx.android.synthetic.main.line_word.view.tb
 import kotlinx.android.synthetic.main.line_word.view.tn
-import java.io.File
 import java.io.FileNotFoundException
 import java.lang.Exception
 
@@ -44,6 +43,8 @@ class MainActivity : AppCompatActivity() {
     private var cm: ClipboardManager? = null
     private var ad: LikeViewHolder.RecyclerViewAdapter? = null
     private var lastLikeLine: View? = null
+    private var end = 0
+    private var start = 0
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,7 +114,7 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onQueryTextSubmit(query: CharSequence): Boolean {
                     if(query.isNotEmpty()) {
-                        val key = query.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
+                        val key = query.toString()
                         val data = dict?.get(key)
                         showDictAlert(key, data, recyclerView.children.toList().let {
                             val i = it.map { it.ta.text }.indexOf(key)
@@ -204,7 +205,8 @@ class MainActivity : AppCompatActivity() {
     }*/
 
     private fun updateSize() = runOnUiThread {
-        lastLikeLine?.fftc?.text = dict?.size?.toString()?:"0"
+        lastLikeLine?.fftt?.text = "${dict?.size?.toString()?:"0"} syez rjimj"
+        lastLikeLine?.fftc?.text = "${start}-${end}"
     }
 
     private fun fetchThread(doWhenFinish: (()->Unit)? = null) {
@@ -221,6 +223,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     ffsw.isRefreshing = false
                     ad?.capacity = 5
+                    ad?.offset = 0
                     ad?.refresh()
                     doWhenFinish?.apply { this() }
                 }
@@ -244,7 +247,8 @@ class MainActivity : AppCompatActivity() {
                             .setPositiveButton(android.R.string.ok) { _, _ ->
                                 val newText = t.diet.text.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
                                 if (t.diet.text.isNotEmpty() && newText != data) Thread {
-                                    if(dict?.set(key, newText) == true) {
+                                    val k = key.trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
+                                    if(dict?.set(k, newText) == true) {
                                         line?.tb?.text = newText
                                         updateSize()
                                     } else runOnUiThread {
@@ -258,7 +262,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNeutralButton("删除") { _, _ ->
                     Thread{
-                        if(dict?.del(key) == true) line?.apply {
+                        if(dict?.send_del(key) == true) line?.apply {
                             val delKey = SpannableString(key)
                             val delData = SpannableString(data)
                             delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -297,14 +301,23 @@ class MainActivity : AppCompatActivity() {
     inner class LikeViewHolder(itemView: View) : ListViewHolder(itemView) {
         inner class RecyclerViewAdapter: ListViewHolder.RecyclerViewAdapter(true){
             var capacity = 5
+            var offset = 0
             override fun loadMore() {
-                capacity += 5
-                refresh()
+                if(offset+5<dict?.latestKeys?.size?:0) {
+                    offset += 5
+                    refresh()
+                }
+            }
+            override fun loadLess() {
+                if(offset>=5) {
+                    offset -= 5
+                    refresh()
+                }
             }
             override fun getKeys(filterText: CharSequence?) = getSharedPreferences("dict", MODE_PRIVATE).all.keys.toTypedArray().let{
                 dict?.let { d ->
-                    val end = d.latestKeys.size
-                    val start = if(end > capacity) end - capacity else 0
+                    end = d.latestKeys.size - offset
+                    start = if(end > capacity) end - capacity else 0
                     (it + d.latestKeys.copyOfRange(start, end).reversedArray()).toList()
                 }?: emptyList()
             }
@@ -319,6 +332,7 @@ class MainActivity : AppCompatActivity() {
             open fun getKeys(filterText: CharSequence? = null): List<String>? = null
             open fun getValue(key: String): String? = null
             open fun loadMore() {}
+            open fun loadLess() {}
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListViewHolder {
                 return ListViewHolder(
                     LayoutInflater.from(parent.context)
@@ -376,10 +390,14 @@ class MainActivity : AppCompatActivity() {
                                 ta.visibility = View.GONE
                                 lwclast.visibility = View.VISIBLE
                                 tn.text = "motkyep..."
-                                tb.text = "加载更多..."
+                                tb.text = "加载更多(长按返回上页)..."
                                 updateSize()
                                 setOnClickListener {
                                     loadMore()
+                                }
+                                setOnLongClickListener {
+                                    loadLess()
+                                    return@setOnLongClickListener true
                                 }
                             }
                         }

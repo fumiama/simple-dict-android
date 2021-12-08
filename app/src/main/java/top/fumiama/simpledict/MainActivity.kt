@@ -262,7 +262,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNeutralButton("删除") { _, _ ->
                     Thread{
-                        if(dict?.send_del(key) == true) line?.apply {
+                        if(dict?.del(key) == true) line?.apply {
                             val delKey = SpannableString(key)
                             val delData = SpannableString(data)
                             delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -270,6 +270,8 @@ class MainActivity : AppCompatActivity() {
                             ta.text = delKey
                             tn.text = delKey
                             tb.text = delData
+                            start--
+                            end--
                             updateSize()
                         }
                         else runOnUiThread {

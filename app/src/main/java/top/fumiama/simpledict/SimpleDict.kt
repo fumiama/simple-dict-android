@@ -80,13 +80,13 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
                         dict[k] = data.decodeToString()
                         latestKeys += k
                     } else {
-                        send_del(key) // 去错
+                        sendel(key) // 去错
                     }
                 } else if(!dict.containsKey(k)){
                     dict[k] = data.decodeToString()
                     latestKeys += k
                 } else {
-                    send_del(key) // 去重
+                    sendel(key) // 去重
                 }
             }
         }
@@ -96,10 +96,10 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
     fun filterValues(predicate: (String?) -> Boolean) = dict.filterValues(predicate)
 
     fun fetchDict(doOnLoadFailure: ()->Unit, doOnLoadSuccess: ()->Unit, doCommon: (() -> Unit)? = null) {
-        dict = hashMapOf()
-        latestKeys = arrayOf()
         val noChange = md5File.exists() && dspFile.exists() && !hasNewItem(md5File.readBytes())
         val data = if(noChange) dspFile.readBytes() else raw
+        dict.clear()
+        latestKeys = arrayOf()
         if(data == null) doOnLoadFailure()
         else {
             analyzeDict(data, !noChange)
@@ -108,7 +108,7 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         doCommon?.let { it() }
     }
 
-    fun send_del(key: String): Boolean {
+    fun del(key: String): Boolean {
         if(spwd == null) return false
         else if(initDict()) {
             val delPass = "del$spwd"
@@ -133,7 +133,7 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
         return false
     }
 
-    private fun send_del(key: ByteArray): Boolean {
+    private fun sendel(key: ByteArray): Boolean {
         if(spwd == null) return false
         else if(initDict()) {
             val delPass = "del$spwd"
@@ -152,7 +152,7 @@ class SimpleDict(private val client: Client, private val pwd: String, private va
     fun set(key: String, value: String): Boolean {
         //if(spwd == null) return false
         val contain = dict.containsKey(key)
-        if((contain && send_del(key)) || !contain) {
+        if((contain && sendel(key.toByteArray())) || !contain) {
             if(initDict()) {
                 val setPass = "set$spwd"
                 client.sendMessage(setPass)

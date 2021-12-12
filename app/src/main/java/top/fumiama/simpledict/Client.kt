@@ -2,6 +2,7 @@ package top.fumiama.simpledict
 //Fumiama 20210601
 //Client.kt
 import android.util.Log
+import top.fumiama.simpledict.Utils.toHexStr
 import java.io.*
 import java.lang.Thread.sleep
 import java.net.Socket
@@ -52,7 +53,7 @@ class Client(private val ip: String, private val port: Int) {
                 if (message != null) {        //判断输出流或者消息是否为空，为空的话会产生null pointer错误
                     dout?.write(message)
                     dout?.flush()
-                    Log.d("MyC", "Send msg: ${message.decodeToString()}")
+                    Log.d("MyC", "Send msg: ${toHexStr(message)}")
                     return true
                 } else Log.d("MyC", "The message to be sent is empty")
                 Log.d("MyC", "send message succeed")
@@ -92,7 +93,7 @@ class Client(private val ip: String, private val port: Int) {
         }
     }
 
-    fun receiveMessage(totalSize: Int) = receiveRawMessage(totalSize).decodeToString()
+    //fun receiveMessage(totalSize: Int) = receiveRawMessage(totalSize).decodeToString()
 
     /**
      * 关闭连接

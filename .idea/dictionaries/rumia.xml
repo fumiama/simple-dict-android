@@ -2,10 +2,12 @@
   <dictionary name="rumia">
     <words>
       <w>datas</w>
+      <w>dstlen</w>
       <w>fumiama</w>
       <w>nequ</w>
       <w>slle</w>
       <w>spwd</w>
+      <w>sumtable</w>
     </words>
   </dictionary>
 </component>

@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
                     val t = layoutInflater.inflate(R.layout.dialog_input, null, false)
                     AlertDialog.Builder(this@MainActivity)
                             .setView(t)
-                            .setTitle("提示")
+                            .setTitle(android.R.string.dialog_alert_title)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
                                 val info = t.diet.text.toString()
                                 try {
@@ -165,13 +165,13 @@ class MainActivity : AppCompatActivity() {
                                             }
                                             putString("pwd", w)
                                             apply()
-                                            Toast.makeText(this@MainActivity, "下次生效", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(this@MainActivity, R.string.toast_take_effect_next_time, Toast.LENGTH_SHORT).show()
                                             return@setPositiveButton
                                         }?:throw FileNotFoundException("getSharedPreferences named \"remote\" error.")
                                     } else throw IllegalArgumentException()
                                 } catch (e: Exception) {
                                     e.printStackTrace()
-                                    Toast.makeText(this@MainActivity, "格式非法", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@MainActivity, R.string.toast_invalid_format, Toast.LENGTH_SHORT).show()
                                 }
                             }
                             .setNegativeButton(android.R.string.cancel) { _, _ -> }
@@ -260,11 +260,11 @@ class MainActivity : AppCompatActivity() {
         Thread{
             dict?.fetchDict({
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "刷新失败", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, R.string.toast_refresh_failed, Toast.LENGTH_SHORT).show()
                 }
             }, {
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, "刷新成功", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, R.string.toast_refresh_succeeded, Toast.LENGTH_SHORT).show()
                 }
             }) {
                 runOnUiThread {
@@ -278,16 +278,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDictAlert(key: String, data: String?, line: View?) {
-        val hintAdd = if(data != null && data != "null") "重设" else "添加"
+        val hintAdd = if(data != null && data != "null") R.string.alert_word_button_reset else R.string.alert_word_button_new
         AlertDialog.Builder(this@MainActivity)
                 .setTitle(key)
                 .setMessage(data)
                 .setPositiveButton(hintAdd) { _, _ ->
                     val t = layoutInflater.inflate(R.layout.dialog_input, null, false)
                     t.diet.setText(data)
-                    t.dit.text = "更改将立即生效"
+                    t.dit.setText(R.string.alert_word_info)
+                    t.diet.setHint(R.string.alert_word_hint)
                     AlertDialog.Builder(this@MainActivity)
-                            .setTitle("$hintAdd$key")
+                            .setTitle("${getString(hintAdd)}$key")
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
                                 val newText = t.diet.text.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
@@ -296,15 +297,15 @@ class MainActivity : AppCompatActivity() {
                                     if(dict?.set(k, newText) == true) {
                                         line?.tb?.text = newText
                                     } else runOnUiThread {
-                                        Toast.makeText(this, "失败", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this, R.string.toast_failed, Toast.LENGTH_SHORT).show()
                                     }
                                 }.start()
-                                else Toast.makeText(this, "未更改", Toast.LENGTH_SHORT).show()
+                                else Toast.makeText(this, R.string.toast_unchanged, Toast.LENGTH_SHORT).show()
                             }
                             .setNegativeButton(android.R.string.cancel) { _, _ -> }
                             .show()
                 }
-                .setNeutralButton("删除") { _, _ ->
+                .setNeutralButton(R.string.alert_word_button_delete) { _, _ ->
                     Thread{
                         if(dict?.del(key) == true) line?.apply {
                             val delKey = SpannableString(key)
@@ -316,7 +317,7 @@ class MainActivity : AppCompatActivity() {
                             tb.text = delData
                         }
                         else runOnUiThread {
-                            Toast.makeText(this, "失败", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, R.string.toast_failed, Toast.LENGTH_SHORT).show()
                         }
                     }.start()
                 }
@@ -573,7 +574,7 @@ class MainActivity : AppCompatActivity() {
                         super.onScrolled(recyclerView, dx, dy)
                         val newStart = ad.getPosition()
                         val bar = mControlBarStates[p]
-                        Log.d("MyMain", "new start: $newStart, index: ${bar.index}, sy: ${recyclerView?.scrollY}")
+                        Log.d("MyMain", "new start: $newStart, index: ${bar.index}")
                         if (newStart != bar.index) {
                             bar.index = newStart
                             updateSize()

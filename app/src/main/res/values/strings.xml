@@ -13,9 +13,20 @@
     <string name="alert_input_server_info">请输入服务器信息</string>
     <string name="alert_input_server_hint">服务器地址:端口_口令</string>
     <string name="alert_select_sort_type">指定排序</string>
+    <string name="alert_word_info">更改将立即生效</string>
+    <string name="alert_word_hint">单词释义</string>
+    <string name="alert_word_button_reset">重设</string>
+    <string name="alert_word_button_new">添加</string>
+    <string name="alert_word_button_delete">删除</string>
 
     <string name="tab_all_words">zenbi</string>
     <string name="tab_liked_words">eujuno</string>
 
     <string name="toast_copied">已复制</string>
+    <string name="toast_failed">失败</string>
+    <string name="toast_unchanged">未更改</string>
+    <string name="toast_take_effect_next_time">下次生效</string>
+    <string name="toast_invalid_format">格式非法</string>
+    <string name="toast_refresh_failed">刷新失败</string>
+    <string name="toast_refresh_succeeded">刷新成功</string>
 </resources>

@@ -1,3 +1,21 @@
 <resources>
     <string name="app_name">SimpleDict</string>
+
+    <string name="info_index_meter">%1$d-%2$d</string>
+    <string name="info_words_total">%1$d rjimj</string>
+    <string name="control_card_h1">posena karakio</string>
+    <string name="control_card_h2">控制栏</string>
+    <string name="control_card_h3">点击显隐, 长按指定排序</string>
+
+    <string name="desc_image_decoration">装饰图</string>
+    <string name="desc_image_like">喜欢</string>
+
+    <string name="alert_input_server_info">请输入服务器信息</string>
+    <string name="alert_input_server_hint">服务器地址:端口_口令</string>
+    <string name="alert_select_sort_type">指定排序</string>
+
+    <string name="tab_all_words">zenbi</string>
+    <string name="tab_liked_words">eujuno</string>
+
+    <string name="toast_copied">已复制</string>
 </resources>

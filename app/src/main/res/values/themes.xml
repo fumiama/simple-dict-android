@@ -10,8 +10,6 @@
         <item name="colorSecondaryVariant">@color/colorSecondaryVariant</item>
         <item name="colorOnSecondary">@android:color/black</item>
         <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorSurface</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
         <!-- Customize your theme here. -->
     </style>
@@ -26,4 +24,11 @@
     <style name="Theme.SimpleDict.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
 
     <style name="Theme.SimpleDict.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+
+    <style name="TextAppearance.NisiTabText" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">26sp</item>
+        <item name="textAllCaps">false</item>
+        <item name="android:fontFamily">@font/nisi</item>
+    </style>
+
 </resources>

@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var spwd: String? = null
     private var dict: SimpleDict? = null
     private var cm: ClipboardManager? = null
+    private var noShowNisi = false
     private var mViewPagerPosition = 0
     private val mControlBarStates = arrayOf(ControlBarState(visibleThreshold+8), ControlBarState(visibleThreshold+8))
     private val mVPAdapter get() = fmvp.adapter as MainFragment.PagerAdapter
@@ -58,7 +59,9 @@ class MainActivity : AppCompatActivity() {
             if(contains("port")) getInt("port", port).apply { port = this }
             if(contains("pwd")) getString("pwd", pwd)?.apply { pwd = this }
             if(contains("spwd")) getString("spwd", spwd)?.apply { spwd = this }
+            if(contains("noNisi")) getBoolean("noNisi", noShowNisi).apply { noShowNisi = this }
         }
+        Log.d("MyMain", "noNisi: $noShowNisi")
         dict = SimpleDict(Client(host, port), pwd, externalCacheDir, spwd)
 
         cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -164,6 +167,7 @@ class MainActivity : AppCompatActivity() {
                                                 }
                                             }
                                             putString("pwd", w)
+                                            putBoolean("noNisi", t.dis.isChecked)
                                             apply()
                                             Toast.makeText(this@MainActivity, R.string.toast_take_effect_next_time, Toast.LENGTH_SHORT).show()
                                             return@setPositiveButton
@@ -422,8 +426,10 @@ class MainActivity : AppCompatActivity() {
                         //Log.d("MyMain", "Like status of $key is $like")
                         holder.itemView.apply {
                             runOnUiThread {
-                                ta.visibility = View.VISIBLE
-                                tn.text = key
+                                if (!noShowNisi) {
+                                    tn.visibility = View.VISIBLE
+                                    tn.text = key
+                                }
                                 ta.text = key
                                 tb.text = data
                                 vl.setBackgroundResource(if(like) R.drawable.ic_like_filled else R.drawable.ic_like)

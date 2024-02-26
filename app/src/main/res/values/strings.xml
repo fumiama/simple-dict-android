@@ -18,6 +18,7 @@
     <string name="alert_word_button_reset">重设</string>
     <string name="alert_word_button_new">添加</string>
     <string name="alert_word_button_delete">删除</string>
+    <string name="alert_input_no_show_nisi">不显示Nisi</string>
 
     <string name="tab_all_words">zenbi</string>
     <string name="tab_liked_words">eujuno</string>

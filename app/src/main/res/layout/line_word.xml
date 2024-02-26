@@ -11,26 +11,27 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
 
         <TextView
             android:id="@+id/tn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginEnd="16dp"
             android:fontFamily="@font/nisi"
             android:textColor="?attr/colorOnSurface"
             android:textSize="30sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/ta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
             android:fontFamily="@font/gotham"
             android:textColor="?attr/colorOnSurface"
             android:textSize="18sp" />
@@ -38,10 +39,7 @@
         <TextView
             android:id="@+id/tb"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="10dp" />
+            android:layout_height="wrap_content" />
     </LinearLayout>
 
     <View
@@ -50,9 +48,9 @@
         android:layout_height="32dp"
         android:layout_marginEnd="16dp"
         android:clickable="true"
+        android:contentDescription="@string/desc_image_like"
         android:focusable="true"
         android:foreground="?android:attr/selectableItemBackground"
-        android:contentDescription="@string/desc_image_like"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />

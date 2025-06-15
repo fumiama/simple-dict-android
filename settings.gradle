@@ -1,2 +1,11 @@
+pluginManagement {
+    plugins {
+        id 'kotlin-android' version "$cm_kotlin_version"
+        id 'com.android.library' version '8.3.2'
+        id 'org.jetbrains.kotlin.android' version '1.7.10'
+    }
+}
+
 include ':app'
 rootProject.name = "SimpleDict"
+include ':sdict'

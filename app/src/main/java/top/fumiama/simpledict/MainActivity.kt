@@ -23,17 +23,31 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import androidx.core.view.children
 import androidx.fragment.app.commit
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager.widget.ViewPager
 import com.lapism.search.internal.SearchLayout
-import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.android.synthetic.main.activity_main.view.*
+import kotlinx.android.synthetic.main.activity_main.cctrl
+import kotlinx.android.synthetic.main.activity_main.ffms
+import kotlinx.android.synthetic.main.activity_main.ffsw
 import kotlinx.android.synthetic.main.card_bottom.cbcard
-import kotlinx.android.synthetic.main.dialog_input.view.*
+import kotlinx.android.synthetic.main.dialog_input.view.diet
+import kotlinx.android.synthetic.main.dialog_input.view.dis
+import kotlinx.android.synthetic.main.dialog_input.view.dit
 import kotlinx.android.synthetic.main.fragment_main.fmvp
-import kotlinx.android.synthetic.main.line_bottom.view.*
-import kotlinx.android.synthetic.main.line_word.view.*
+import kotlinx.android.synthetic.main.line_bottom.view.lbtindex
+import kotlinx.android.synthetic.main.line_bottom.view.lbttotal
+import kotlinx.android.synthetic.main.line_bottom.view.sb
+import kotlinx.android.synthetic.main.line_word.view.ta
+import kotlinx.android.synthetic.main.line_word.view.tb
+import kotlinx.android.synthetic.main.line_word.view.tn
+import kotlinx.android.synthetic.main.line_word.view.vl
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.fumiama.sdict.io.Client
+import top.fumiama.sdict.SimpleDict
 import java.io.FileNotFoundException
 
 class MainActivity : AppCompatActivity() {
@@ -42,7 +56,7 @@ class MainActivity : AppCompatActivity() {
     private var port = 80
     private var pwd = "demo"
     private var spwd: String? = null
-    private var dict: SimpleDict? = null
+    private val dict: SimpleDict by lazy { SimpleDict(Client(host, port), pwd, externalCacheDir, spwd) }
     private var cm: ClipboardManager? = null
     private var noShowNisi = false
     private var mViewPagerPosition = 0
@@ -61,8 +75,7 @@ class MainActivity : AppCompatActivity() {
             if(contains("spwd")) getString("spwd", spwd)?.apply { spwd = this }
             if(contains("noNisi")) getBoolean("noNisi", noShowNisi).apply { noShowNisi = this }
         }
-        Log.d("MyMain", "noNisi: $noShowNisi")
-        dict = SimpleDict(Client(host, port), pwd, externalCacheDir, spwd)
+        Log.d("MyMain", "server: $host:$port, noNisi: $noShowNisi")
 
         cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
@@ -77,13 +90,17 @@ class MainActivity : AppCompatActivity() {
 
         ffsw.apply {
             setOnRefreshListener {
-                fetchThread {
-                    updateSize()
+                lifecycleScope.launch {
+                    fetch {
+                        updateSize()
+                    }
                 }
             }
             isRefreshing = true
-            fetchThread {
-                updateSize()
+            lifecycleScope.launch {
+                fetch {
+                    updateSize()
+                }
             }
         }
 
@@ -98,8 +115,10 @@ class MainActivity : AppCompatActivity() {
                     val a = lm.findFirstVisibleItemPosition()
                     val b = lm.findLastVisibleItemPosition()
                     val total = lm.itemCount
-                    if(a <= 0) adapter.scrollUp(1)
-                    else if(b >= total-1) adapter.scrollDown(1)
+                    lifecycleScope.launch {
+                        if(a <= 0) adapter.scrollUp(1)
+                        else if(b >= total-1) adapter.scrollDown(1)
+                    }
                 }
             })
             setAdapter(adapter)
@@ -130,8 +149,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onQueryTextSubmit(query: CharSequence): Boolean {
                     if(query.isNotEmpty()) {
                         val key = query.toString()
-                        val data = dict?.get(key)
-                        showDictAlert(key, data, recyclerView.children.toList().let { children ->
+                        showDictAlert(key, dict[key], recyclerView.children.toList().let { children ->
                             val i = children.map { it.ta.text }.indexOf(key)
                             if(i >= 0) children[i] else null
                         })
@@ -207,7 +225,7 @@ class MainActivity : AppCompatActivity() {
                 if(isSeeking) {
                     val bar = mControlBarStates[mViewPagerPosition]
                     bar.index = bar.getPosition(p)
-                    updateSize(false)
+                    lifecycleScope.launch { updateSize(false) }
                 }
             }
 
@@ -221,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d("MyMain", "onStopTrackingTouch")
                 s?.progress?.let {
                     val ad = mVPAdapter.views[mViewPagerPosition]?.recyclerView?.adapter as? ListViewHolder.RecyclerViewAdapter ?: return
-                    ad.setProgress(it)
+                    lifecycleScope.launch { ad.setProgress(it) }
                 }
             }
         })
@@ -252,7 +270,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSize(updateSeekbar: Boolean = true) = runOnUiThread {
+    private suspend fun updateSize(updateSeekbar: Boolean = true) = withContext(Dispatchers.Main) {
         Log.d("MyMain", "update size, updateSeekbar: $updateSeekbar")
         val bar = mControlBarStates[mViewPagerPosition]
         cctrl?.lbtindex?.text = bar.formatRange(getString(R.string.info_index_meter))
@@ -260,25 +278,25 @@ class MainActivity : AppCompatActivity() {
         if (updateSeekbar) cctrl?.sb?.progress = bar.getPercentage()
     }
 
-    private fun fetchThread(doWhenFinish: (()->Unit)? = null) {
-        Thread{
-            dict?.fetchDict({
-                runOnUiThread {
+    private suspend fun fetch(doWhenFinish: (suspend ()->Unit)? = null) {
+        withContext(Dispatchers.IO) {
+            dict.fetch({
+                withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, R.string.toast_refresh_failed, Toast.LENGTH_SHORT).show()
                 }
             }, {
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, R.string.toast_refresh_succeeded, Toast.LENGTH_SHORT).show()
                 }
             }) {
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     ffsw.isRefreshing = false
                     (mVPAdapter.views[mViewPagerPosition]?.recyclerView?.adapter as? ListViewHolder.RecyclerViewAdapter)?.refresh()
                     updateSize()
-                    doWhenFinish?.apply { this() }
+                    doWhenFinish?.invoke()
                 }
             }
-        }.start()
+        }
     }
 
     private fun showDictAlert(key: String, data: String?, line: View?) {
@@ -296,34 +314,40 @@ class MainActivity : AppCompatActivity() {
                             .setView(t)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
                                 val newText = t.diet.text.toString().trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
-                                if (t.diet.text.isNotEmpty() && newText != data) Thread {
-                                    val k = key.trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
-                                    if(dict?.set(k, newText) == true) {
-                                        line?.tb?.text = newText
-                                    } else runOnUiThread {
-                                        Toast.makeText(this, R.string.toast_failed, Toast.LENGTH_SHORT).show()
+                                if (t.diet.text.isNotEmpty() && newText != data) lifecycleScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        val k = key.trim().replace(Regex("[\\uFF00-\\uFF5E]")) { (it.value[0] - 0xFEE0).toString() }
+                                        if(dict.set(k, newText)) withContext(Dispatchers.Main) {
+                                            line?.tb?.text = newText
+                                        } else withContext(Dispatchers.Main) {
+                                            Toast.makeText(this@MainActivity, R.string.toast_failed, Toast.LENGTH_SHORT).show()
+                                        }
                                     }
-                                }.start()
+                                }
                                 else Toast.makeText(this, R.string.toast_unchanged, Toast.LENGTH_SHORT).show()
                             }
                             .setNegativeButton(android.R.string.cancel) { _, _ -> }
                             .show()
                 }
                 .setNeutralButton(R.string.alert_word_button_delete) { _, _ ->
-                    Thread{
-                        if(dict?.del(key) == true) line?.apply {
-                            val delKey = SpannableString(key)
-                            val delData = SpannableString(data)
-                            delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            delData.setSpan(StrikethroughSpan(), 0, (data?.length?:0), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            ta.text = delKey
-                            tn.text = delKey
-                            tb.text = delData
+                    lifecycleScope.launch{
+                        withContext(Dispatchers.IO) {
+                            if(dict.del(key)) line?.apply {
+                                val delKey = SpannableString(key)
+                                val delData = SpannableString(data)
+                                delKey.setSpan(StrikethroughSpan(), 0, key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                delData.setSpan(StrikethroughSpan(), 0, (data?.length?:0), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                withContext(Dispatchers.Main) {
+                                    ta.text = delKey
+                                    tn.text = delKey
+                                    tb.text = delData
+                                }
+                            }
+                            else withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, R.string.toast_failed, Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        else runOnUiThread {
-                            Toast.makeText(this, R.string.toast_failed, Toast.LENGTH_SHORT).show()
-                        }
-                    }.start()
+                    }
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> }
                 .show()
@@ -354,21 +378,21 @@ class MainActivity : AppCompatActivity() {
     inner class SearchViewHolder(itemView: View) : ListViewHolder(itemView) {
         inner class RecyclerViewAdapter : ListViewHolder.RecyclerViewAdapter(visibleThreshold) {
             override fun getKeys(filterText: CharSequence?) = filterText?.let { filter(it) }
-            override fun getValue(key: String) = dict?.get(key)
+            override fun getValue(key: String) = dict[key]
             private fun filter(text: CharSequence): List<String> {
-                return dict?.keys?.filter {
-                        it.contains(text, true)
-                }?.toSet()?.plus(
-                    dict?.filterValues {
+                return dict.keys.filter {
+                    it.contains(text, true)
+                }.toSet().plus(
+                    dict.filterValues {
                         it?.contains(text, true) ?: false
                     }.let {
                         val newSet = mutableSetOf<String>()
-                        it?.keys?.forEach { k ->
+                        it.keys.forEach { k ->
                             newSet += k
                         }
                         newSet
                     }
-                )?.toList()?: emptyList()
+                ).toList()
             }
         }
     }
@@ -383,7 +407,7 @@ class MainActivity : AppCompatActivity() {
                         bar.sort(keys.toList())
                     }
                 }
-                else dict?.latestKeys?.let { keys ->
+                else dict.latestKeys.let { keys ->
                     Log.d("MyMain", "LikeViewHolder getKeys all, set size: ${keys.size}")
                     mControlBarStates[0].let { bar ->
                         bar.total = keys.size
@@ -391,7 +415,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             )?: emptyList()
-            override fun getValue(key: String) = dict?.get(key)?:dictPreferences?.getString(key, "null")?:"N/A"
+            override fun getValue(key: String) = dict[key] ?:dictPreferences?.getString(key, "null")?:"N/A"
         }
     }
 
@@ -417,15 +441,15 @@ class MainActivity : AppCompatActivity() {
             override fun onBindViewHolder(holder: ListViewHolder, p: Int) {
                 val position = p + index
                 Log.d("MyMain", "Bind open at $p($position)")
-                Thread{
+                lifecycleScope.launch { withContext(Dispatchers.IO) {
                     listKeys?.apply {
-                        if (position >= size) return@Thread
+                        if (position >= size) return@withContext
                         val key = get(position)
                         val data = getValue(key)
                         val like = dictPreferences?.contains(key) == true
                         //Log.d("MyMain", "Like status of $key is $like")
-                        holder.itemView.apply {
-                            runOnUiThread {
+                        holder.itemView.apply line@ {
+                            withContext(Dispatchers.Main) {
                                 if (!noShowNisi) {
                                     tn.visibility = View.VISIBLE
                                     tn.text = key
@@ -435,13 +459,11 @@ class MainActivity : AppCompatActivity() {
                                 vl.setBackgroundResource(if(like) R.drawable.ic_like_filled else R.drawable.ic_like)
                                 //Log.d("MyMain", "Set like of $key: $like")
                                 setOnClickListener {
-                                    showDictAlert(key, data, this)
+                                    showDictAlert(key, data, this@line)
                                 }
                                 setOnLongClickListener {
                                     cm?.setPrimaryClip(ClipData.newPlainText("SimpleDict", "$key\n$data"))
-                                    runOnUiThread {
-                                        Toast.makeText(this@MainActivity, R.string.toast_copied, Toast.LENGTH_SHORT).show()
-                                    }
+                                    Toast.makeText(this@MainActivity, R.string.toast_copied, Toast.LENGTH_SHORT).show()
                                     true
                                 }
                                 vl.setOnClickListener {
@@ -464,7 +486,7 @@ class MainActivity : AppCompatActivity() {
                         if(p >= itemCount-1) scrollDown(if(p < renderLinesCount) 4 else 1)
                         else if(p <= 1) scrollUp(if(p < renderLinesCount) 4 else 1)
                     }
-                }.start()
+                } }
             }
 
             override fun getItemCount() = (listKeys?.size?:0).let { if(it > renderLinesCount) renderLinesCount else it }
@@ -478,7 +500,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             @SuppressLint("NotifyDataSetChanged")
-            fun scrollDown(n: Int) {
+            suspend fun scrollDown(n: Int) {
                 if((listKeys?.size ?: 0) <= renderLinesCount) return
                 val oldIndex = index
                 val nextIndex = if(oldIndex + n + renderLinesCount > (listKeys?.size ?: 0)) (listKeys?.size ?: 0) - renderLinesCount else oldIndex + n
@@ -486,7 +508,7 @@ class MainActivity : AppCompatActivity() {
                 if(nextIndex < 0) return
                 index = nextIndex
                 if(n >= renderLinesCount) {
-                    runOnUiThread { notifyDataSetChanged() }
+                    withContext(Dispatchers.Main) { notifyDataSetChanged() }
                     return
                 }
                 // index         next index
@@ -495,25 +517,25 @@ class MainActivity : AppCompatActivity() {
                 //               ---remain---       ↑
                 // ----delete----  →  →  →  →  →  ↗
                 val insert = nextIndex - oldIndex
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     notifyItemRangeInserted(renderLinesCount, insert)
                     notifyItemRangeRemoved(0, insert)
                 }
             }
 
             @SuppressLint("NotifyDataSetChanged")
-            fun scrollUp(n: Int) {
+            suspend fun scrollUp(n: Int) {
                 if((listKeys?.size ?: 0) <= renderLinesCount) return
                 val oldIndex = index
                 val nextIndex = if(oldIndex-n >= 0) oldIndex-n else 0
                 if(oldIndex == nextIndex) return
                 index = nextIndex
                 if(n >= renderLinesCount) {
-                    runOnUiThread { notifyDataSetChanged() }
+                    withContext(Dispatchers.Main) { notifyDataSetChanged() }
                     return
                 }
                 val insert = oldIndex - nextIndex
-                runOnUiThread {
+                withContext(Dispatchers.Main)  {
                     notifyItemRangeInserted(0, insert)
                     notifyItemRangeRemoved(renderLinesCount, insert)
                 }
@@ -522,7 +544,7 @@ class MainActivity : AppCompatActivity() {
             fun getPosition() = index
 
             @SuppressLint("NotifyDataSetChanged")
-            fun setProgress(p: Int) {
+            suspend fun setProgress(p: Int) {
                 if(p > 100 || p < 0) return
                 var newIndex = p * (listKeys?.size?:0) / 100
                 if(newIndex + renderLinesCount > (listKeys?.size?:0)) {
@@ -534,7 +556,7 @@ class MainActivity : AppCompatActivity() {
                 val n = newIndex - oldIndex
                 if(n >= renderLinesCount || n <= -renderLinesCount) {
                     index = newIndex
-                    runOnUiThread { notifyDataSetChanged() }
+                    withContext(Dispatchers.Main) { notifyDataSetChanged() }
                     return
                 }
                 if(n > 0) scrollDown(n)
@@ -550,7 +572,7 @@ class MainActivity : AppCompatActivity() {
             if(ad?.hasRefreshed == false) {
                 ad.refresh()
             }
-            updateSize()
+            lifecycleScope.launch { updateSize() }
         }
 
         override fun onPageScrollStateChanged(state: Int) {
@@ -583,7 +605,7 @@ class MainActivity : AppCompatActivity() {
                         Log.d("MyMain", "new start: $newStart, index: ${bar.index}")
                         if (newStart != bar.index) {
                             bar.index = newStart
-                            updateSize()
+                            lifecycleScope.launch { updateSize() }
                         }
                     }
                     override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
@@ -593,8 +615,10 @@ class MainActivity : AppCompatActivity() {
                         Log.d("MyMain", "new scroll state: $newState, a: $a, b: $b")
                         this@MainActivity.ffsw.isEnabled = newState == 0 && a == 0
                         val total = lm.itemCount
-                        if(a <= 0) ad.scrollUp(1)
-                        else if(b >= total-1) ad.scrollDown(1)
+                        lifecycleScope.launch {
+                            if(a <= 0) ad.scrollUp(1)
+                            else if(b >= total-1) ad.scrollDown(1)
+                        }
                     }
                 })
             }

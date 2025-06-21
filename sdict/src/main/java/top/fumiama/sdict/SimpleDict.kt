@@ -29,7 +29,8 @@ import top.fumiama.sdict.protocol.SimpleProtobuf
 import top.fumiama.sdict.protocol.Tea
 
 /**
- * A high-level dictionary manager that communicates with a remote server over a custom protocol via [Client].
+ * A high-level dictionary manager that communicates with a remote [Simple Dict Server](https://github.com/fumiama/simple-dict)
+ * over a custom protocol via [Client].
  *
  * This class supports fetching, storing, deleting, and checking remote dictionary entries. It maintains a local cache,
  * synchronizes updates, and verifies integrity using MD5.
@@ -167,7 +168,7 @@ class SimpleDict(
                 CmdPacket(CmdPacket.CMD_MD5, md5, teaPassword).encrypt(seq++)
             )
             val cp = ack
-            Log.d("SimpleDict", "Check md5: $cp")
+            Log.d("SimpleDict", "check md5: $cp")
             closeDict()
             cp == "nequ"
         } else false
